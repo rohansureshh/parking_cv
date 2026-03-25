@@ -1,4 +1,4 @@
-# AI Model and Backend for prototype project better park
+# AI Model and Backend for SwiftPark
 
 ## Setup
 
