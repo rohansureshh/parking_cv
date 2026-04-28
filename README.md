@@ -10,6 +10,42 @@ YOLOv8 weights (`yolov8n.pt`) will download automatically on first run (~6MB).
 
 ---
 
+## Run the Demo Backend on Windows
+
+From this repo folder:
+
+```powershell
+py -m venv venv
+.\venv\Scripts\activate
+py -m pip install -r requirements.txt
+py -m uvicorn api.main:app --reload
+```
+
+The API will run at:
+
+```text
+http://127.0.0.1:8000
+```
+
+Try these demo endpoints in your browser:
+
+```text
+http://127.0.0.1:8000/health
+http://127.0.0.1:8000/demo/occupancy
+```
+
+To simulate a new parking detection, run this in PowerShell:
+
+```powershell
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/demo/simulate-detection
+```
+
+This backend currently returns sample data for "OSU Parking Structure 1". It does
+not run the YOLO detector yet; that keeps the YC demo API simple and reliable
+while the frontend is being built.
+
+---
+
 ## Quick Start
 
 ### Lite tier - just count cars and get occupancy %
