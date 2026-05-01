@@ -17,6 +17,8 @@ from typing import Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from camera import CameraWorker
+from models import OccupancySnapshot
 
 # TODO hardcoded default global variables for now
 
