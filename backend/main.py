@@ -90,3 +90,56 @@ def on_snapshot_update(snapshot: OccupancySnapshot):
 
 worker.set_update_callback(on_snapshot_update)
 
+# ------------------------------------------------------------------
+# App lifecycle
+# ------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start camera worker when server starts
+    worker.start()
+    yield
+    # Stop when server shuts down
+    worker.stop()
+
+
+app = FastAPI(
+    title="Parking Lot Occupancy API",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+# Use cors to allow requests from frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ------------------------------------------------------------------
+# REST Endpoints
+# ------------------------------------------------------------------
+
+@app.get("/health")
+def health():
+    """Quick check that the server and camera worker are running."""
+    snapshot = worker.get_snapshot()
+    return {
+        "server": "ok",
+        "camera": "ok" if snapshot else "initializing",
+    }
+
+
+@app.get("/status", response_model=OccupancySnapshot)
+def get_status():
+    """
+    Returns the latest occupancy snapshot.
+    Call this once when the frontend loads to get the current state.
+    """
+    snapshot = worker.get_snapshot()
+    if snapshot is None:
+        raise HTTPException(status_code=503, detail="Camera worker is still initializing")
+    return snapshot
+
+
