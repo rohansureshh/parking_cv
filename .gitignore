@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 venv/
 __pycache__/
 *.pyc
@@ -12,3 +13,25 @@ frontend/node_modules/
 frontend/dist/
 frontend/.env.local
 frontend/.vite/
+=======
+# Backend / project
+spots.json
+yolov8n.pt
+.env
+__pycache__/
+*.py[cod]
+venv/
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.vite/
+frontend/.env.local
+frontend/.env.*.local
+frontend/*.log
+
+# OS
+.DS_Store
+Thumbs.db
+>>>>>>> upstream/main
