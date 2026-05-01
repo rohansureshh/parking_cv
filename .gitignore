@@ -1,3 +1,19 @@
+<<<<<<< HEAD
+venv/
+__pycache__/
+*.pyc
+.env
+node_modules/
+dist/
+.DS_Store\
+spots.json
+yolov8n.pt
+design-reference/
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.vite/
+=======
 # Backend / project
 spots.json
 yolov8n.pt
@@ -18,3 +34,4 @@ frontend/*.log
 # OS
 .DS_Store
 Thumbs.db
+>>>>>>> upstream/main

@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Header } from "./components/Header";
 import { StatsCard } from "./components/StatsCard";
 import { LevelList } from "./components/LevelList";
-import { SpotMap } from "./components/SpotMap";
 import { SpotPanel } from "./components/SpotPanel";
 import { ConfirmationModal } from "./components/ConfirmationModal";
+import ParkingGarage3D from "./components/parking/ParkingGarage3D";
 
 import { ApiError, fetchOccupancy, simulateDetection } from "./lib/api";
 import type { Occupancy, Spot } from "./lib/types";
@@ -21,6 +21,7 @@ function App() {
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
   const [confirmedSpot, setConfirmedSpot] = useState<Spot | null>(null);
   const [simulating, setSimulating] = useState(false);
+  const [activeLevel, setActiveLevel] = useState<string | null>(null);
 
   const applyOccupancy = useCallback(
     (occupancy: Occupancy) => {
@@ -95,6 +96,38 @@ function App() {
       ? occupancy.spots.find((s) => s.id === selectedSpotId) ?? null
       : null;
 
+  // Levels present in the current occupancy, sorted naturally (L1, L2, L3).
+  const levels = useMemo(() => {
+    if (!occupancy) return [] as string[];
+    const seen = new Set<string>();
+    for (const spot of occupancy.spots) seen.add(spot.level);
+    return Array.from(seen).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true }),
+    );
+  }, [occupancy]);
+
+  // Default activeLevel to the first level once data arrives, and reset if
+  // the current level disappears (e.g. backend re-seeded with different data).
+  useEffect(() => {
+    if (levels.length === 0) {
+      if (activeLevel !== null) setActiveLevel(null);
+      return;
+    }
+    if (activeLevel === null || !levels.includes(activeLevel)) {
+      setActiveLevel(levels[0]);
+    }
+  }, [levels, activeLevel]);
+
+  const spotsOnActiveLevel = useMemo(() => {
+    if (!occupancy || activeLevel === null) return [] as Spot[];
+    return occupancy.spots.filter((s) => s.level === activeLevel);
+  }, [occupancy, activeLevel]);
+
+  // Only pass `selectedSpot` into the 3D viewport when it lives on the
+  // currently visible floor; otherwise the glow would be on the wrong tile.
+  const selectedSpotForGarage =
+    selectedSpot && selectedSpot.level === activeLevel ? selectedSpot : null;
+
   return (
     <div className="app-shell">
       <Header facilityStatus={occupancy?.facility_status} />
@@ -117,11 +150,18 @@ function App() {
           ) : (
             <>
               <LevelList spots={state.occupancy.spots} />
-              <SpotMap
-                spots={state.occupancy.spots}
-                selectedSpotId={selectedSpotId}
-                onSelectSpot={handleSelectSpot}
+              <FloorSelector
+                levels={levels}
+                activeLevel={activeLevel}
+                onSelect={setActiveLevel}
               />
+              <div className="garage3d-frame">
+                <ParkingGarage3D
+                  spots={spotsOnActiveLevel}
+                  selectedSpot={selectedSpotForGarage}
+                  onSelectSpot={handleSelectSpot}
+                />
+              </div>
             </>
           )}
 
@@ -144,6 +184,36 @@ function App() {
           onClose={handleDismissConfirmation}
         />
       )}
+    </div>
+  );
+}
+
+interface FloorSelectorProps {
+  levels: string[];
+  activeLevel: string | null;
+  onSelect: (level: string) => void;
+}
+
+function FloorSelector({ levels, activeLevel, onSelect }: FloorSelectorProps) {
+  if (levels.length === 0) return null;
+  return (
+    <div className="floor-selector" role="tablist" aria-label="Floor selector">
+      {levels.map((level) => {
+        const isActive = level === activeLevel;
+        return (
+          <button
+            key={level}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            className="floor-selector__btn"
+            data-active={isActive ? "true" : undefined}
+            onClick={() => onSelect(level)}
+          >
+            Level {level}
+          </button>
+        );
+      })}
     </div>
   );
 }

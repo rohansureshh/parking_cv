@@ -392,6 +392,53 @@ button:disabled {
 }
 
 /* ──────────────────────────────────────────────────────────────
+   Floor selector + 3D viewport frame (Phase 3A)
+   ────────────────────────────────────────────────────────────── */
+
+.floor-selector {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-soft);
+}
+
+.floor-selector__btn {
+  flex: 1;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.floor-selector__btn:hover {
+  background: var(--brand-tint);
+  color: var(--brand-strong);
+}
+
+.floor-selector__btn[data-active="true"] {
+  background: var(--brand);
+  color: white;
+  box-shadow: 0 4px 10px -4px rgba(37, 99, 235, 0.55);
+}
+
+.garage3d-frame {
+  position: relative;
+  height: 380px;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  background: #f0f4f8;
+  box-shadow: var(--shadow-card);
+}
+
+/* ──────────────────────────────────────────────────────────────
    Spot map (2.5D)
    ────────────────────────────────────────────────────────────── */
 
