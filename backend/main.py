@@ -59,3 +59,34 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# ------------------------------------------------------------------
+# Camera worker setup
+# ------------------------------------------------------------------
+
+spots_config = None
+if SPOTS_FILE and os.path.exists(SPOTS_FILE):
+    import json as _json
+    with open(SPOTS_FILE) as f:
+        spots_config = _json.load(f)
+    print(f"Loaded spots config: {SPOTS_FILE}")
+
+worker = CameraWorker(
+    source=VIDEO_SOURCE,
+    capacity=LOT_CAPACITY,
+    model_path=YOLO_MODEL,
+    spots_config=spots_config,
+)
+
+def on_snapshot_update(snapshot: OccupancySnapshot):
+    """Called by camera worker whenever a new snapshot is ready."""
+    data = snapshot.model_dump_json()
+    # Schedule the async broadcast from the sync thread
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.run_coroutine_threadsafe(manager.broadcast(data), loop)
+    except RuntimeError:
+        pass  # No event loop yet during startup
+
+worker.set_update_callback(on_snapshot_update)
+
