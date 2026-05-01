@@ -1,0 +1,15 @@
+# Install these with:
+# pip install -r requirements.txt
+
+
+# First calibrate: 
+# py calibrate.py --video test.mp4 --output spots.json
+# Then run: 
+# py run.py --video test.mp4 --capacity 50 --spots spots.json
+
+ultralytics>=8.0.0    # YOLOv8 
+opencv-python>=4.8.0  # Video capture, drawing, display
+numpy>=1.24.0
+fastapi>=0.110.0      # Demo API backend
+uvicorn[standard]>=0.27.0  # Local API server
+supabase>=2.0.0       # Supabase database client
