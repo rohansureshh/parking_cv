@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Header } from "./components/Header";
-import { StatsCard } from "./components/StatsCard";
-import { LevelList } from "./components/LevelList";
+import { TopBar } from "./components/TopBar";
+import { FloorSelector } from "./components/FloorSelector";
+import { LegendRow } from "./components/LegendRow";
+import { StatsRow } from "./components/StatsRow";
+import { SimulateButton } from "./components/SimulateButton";
+import { HeroOverlays } from "./components/HeroOverlays";
 import { SpotPanel } from "./components/SpotPanel";
 import { ConfirmationModal } from "./components/ConfirmationModal";
 import ParkingGarage3D from "./components/parking/ParkingGarage3D";
@@ -17,37 +20,33 @@ type LoadState =
 
 function App() {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
   const [confirmedSpot, setConfirmedSpot] = useState<Spot | null>(null);
   const [simulating, setSimulating] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeLevel, setActiveLevel] = useState<string | null>(null);
+  const [viewVersion, setViewVersion] = useState(0);
 
-  const applyOccupancy = useCallback(
-    (occupancy: Occupancy) => {
-      setState({ kind: "ready", occupancy });
-      setLastUpdated(new Date());
-
-      // Drop the selection if the spot is no longer available.
-      setSelectedSpotId((current) => {
-        if (!current) return current;
-        const spot = occupancy.spots.find((s) => s.id === current);
-        return spot && spot.status === "available" ? current : null;
-      });
-    },
-    [],
-  );
+  const applyOccupancy = useCallback((occupancy: Occupancy) => {
+    setState({ kind: "ready", occupancy });
+    setSelectedSpotId((current) => {
+      if (!current) return current;
+      const spot = occupancy.spots.find((s) => s.id === current);
+      return spot && spot.status === "available" ? current : null;
+    });
+  }, []);
 
   const refresh = useCallback(async () => {
+    setRefreshing(true);
     try {
       const data = await fetchOccupancy();
       applyOccupancy(data);
     } catch (err) {
       const apiErr =
-        err instanceof ApiError
-          ? err
-          : new ApiError(String(err), "network");
+        err instanceof ApiError ? err : new ApiError(String(err), "network");
       setState({ kind: "error", error: apiErr });
+    } finally {
+      setRefreshing(false);
     }
   }, [applyOccupancy]);
 
@@ -62,9 +61,7 @@ function App() {
       applyOccupancy(data);
     } catch (err) {
       const apiErr =
-        err instanceof ApiError
-          ? err
-          : new ApiError(String(err), "network");
+        err instanceof ApiError ? err : new ApiError(String(err), "network");
       setState({ kind: "error", error: apiErr });
     } finally {
       setSimulating(false);
@@ -90,13 +87,16 @@ function App() {
     setSelectedSpotId(null);
   }, []);
 
+  const handleRecenter = useCallback(() => {
+    setViewVersion((v) => v + 1);
+  }, []);
+
   const occupancy = state.kind === "ready" ? state.occupancy : null;
   const selectedSpot =
     occupancy && selectedSpotId
       ? occupancy.spots.find((s) => s.id === selectedSpotId) ?? null
       : null;
 
-  // Levels present in the current occupancy, sorted naturally (L1, L2, L3).
   const levels = useMemo(() => {
     if (!occupancy) return [] as string[];
     const seen = new Set<string>();
@@ -118,19 +118,39 @@ function App() {
     }
   }, [levels, activeLevel]);
 
+  // When the user switches floors, clear the selection unless the selected
+  // spot lives on the new floor (per Phase 3B requirement).
+  useEffect(() => {
+    if (!selectedSpotId || !occupancy || activeLevel === null) return;
+    const spot = occupancy.spots.find((s) => s.id === selectedSpotId);
+    if (!spot || spot.level !== activeLevel) {
+      setSelectedSpotId(null);
+    }
+  }, [activeLevel, selectedSpotId, occupancy]);
+
   const spotsOnActiveLevel = useMemo(() => {
     if (!occupancy || activeLevel === null) return [] as Spot[];
     return occupancy.spots.filter((s) => s.level === activeLevel);
   }, [occupancy, activeLevel]);
 
-  // Only pass `selectedSpot` into the 3D viewport when it lives on the
-  // currently visible floor; otherwise the glow would be on the wrong tile.
+  const availableOnActiveLevel = useMemo(() => {
+    return spotsOnActiveLevel.reduce(
+      (acc, s) => (s.status === "available" ? acc + 1 : acc),
+      0,
+    );
+  }, [spotsOnActiveLevel]);
+
   const selectedSpotForGarage =
     selectedSpot && selectedSpot.level === activeLevel ? selectedSpot : null;
 
   return (
     <div className="app-shell">
-      <Header facilityStatus={occupancy?.facility_status} />
+      <TopBar
+        title="Spot Visualization"
+        facilityStatus={occupancy?.facility_status}
+        onRefresh={() => void refresh()}
+        refreshing={refreshing}
+      />
 
       {state.kind === "loading" && <LoadingSkeleton />}
 
@@ -140,28 +160,34 @@ function App() {
 
       {state.kind === "ready" && (
         <div className="stack">
-          <StatsCard occupancy={state.occupancy} lastUpdated={lastUpdated} />
-
           {state.occupancy.spots.length === 0 ? (
-            <div className="empty-card">
-              No spots yet. Run <code>POST /demo/seed</code> on the backend to
-              generate sample data.
-            </div>
+            <EmptyNotice />
           ) : (
             <>
-              <LevelList spots={state.occupancy.spots} />
               <FloorSelector
                 levels={levels}
                 activeLevel={activeLevel}
                 onSelect={setActiveLevel}
               />
-              <div className="garage3d-frame">
-                <ParkingGarage3D
-                  spots={spotsOnActiveLevel}
-                  selectedSpot={selectedSpotForGarage}
-                  onSelectSpot={handleSelectSpot}
+
+              <div className="hero">
+                <div className="hero__canvas">
+                  <ParkingGarage3D
+                    spots={spotsOnActiveLevel}
+                    selectedSpot={selectedSpotForGarage}
+                    onSelectSpot={handleSelectSpot}
+                    viewVersion={viewVersion}
+                  />
+                </div>
+                <HeroOverlays
+                  activeLevel={activeLevel}
+                  onRecenter={handleRecenter}
+                  showHint={!selectedSpotId}
                 />
               </div>
+
+              <LegendRow />
+              <StatsRow occupancy={state.occupancy} />
             </>
           )}
 
@@ -172,7 +198,15 @@ function App() {
               onClose={handleClosePanel}
             />
           ) : (
-            <SimulateBar simulating={simulating} onClick={handleSimulate} />
+            <>
+              {state.occupancy.spots.length > 0 && (
+                <HintBar availableCount={availableOnActiveLevel} />
+              )}
+              <SimulateButton
+                simulating={simulating}
+                onClick={handleSimulate}
+              />
+            </>
           )}
         </div>
       )}
@@ -188,59 +222,29 @@ function App() {
   );
 }
 
-interface FloorSelectorProps {
-  levels: string[];
-  activeLevel: string | null;
-  onSelect: (level: string) => void;
+interface HintBarProps {
+  availableCount: number;
 }
 
-function FloorSelector({ levels, activeLevel, onSelect }: FloorSelectorProps) {
-  if (levels.length === 0) return null;
+function HintBar({ availableCount }: HintBarProps) {
   return (
-    <div className="floor-selector" role="tablist" aria-label="Floor selector">
-      {levels.map((level) => {
-        const isActive = level === activeLevel;
-        return (
-          <button
-            key={level}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            className="floor-selector__btn"
-            data-active={isActive ? "true" : undefined}
-            onClick={() => onSelect(level)}
-          >
-            Level {level}
-          </button>
-        );
-      })}
+    <div className="hint-bar">
+      <span className="hint-bar__text">
+        Tap a <strong>blue</strong> spot to select it
+      </span>
+      <span className="hint-bar__count">{availableCount} open</span>
     </div>
   );
 }
 
-interface SimulateBarProps {
-  simulating: boolean;
-  onClick: () => void;
-}
-
-function SimulateBar({ simulating, onClick }: SimulateBarProps) {
+function EmptyNotice() {
   return (
-    <div className="simulate">
-      <button
-        type="button"
-        className="simulate__btn"
-        onClick={onClick}
-        disabled={simulating}
-      >
-        {simulating ? (
-          <>
-            <span className="spinner" aria-hidden="true" />
-            Running detection…
-          </>
-        ) : (
-          <>Run Detection Simulation</>
-        )}
-      </button>
+    <div className="notice">
+      <div className="notice__title">No demo data yet</div>
+      <p className="notice__body">
+        Run <code>POST /demo/seed</code> on the backend to generate sample data,
+        then refresh.
+      </p>
     </div>
   );
 }
@@ -248,17 +252,10 @@ function SimulateBar({ simulating, onClick }: SimulateBarProps) {
 function LoadingSkeleton() {
   return (
     <div className="stack" aria-busy="true" aria-live="polite">
-      <div className="card">
-        <div className="skeleton skeleton-line" style={{ width: "60%" }} />
-        <div className="skeleton skeleton-line" style={{ width: "40%" }} />
-        <div
-          className="skeleton skeleton-line"
-          style={{ height: 56, marginTop: 16 }}
-        />
-        <div className="skeleton skeleton-line" />
-      </div>
-      <div className="skeleton skeleton-card" />
-      <div className="skeleton skeleton-card" />
+      <div className="skeleton" style={{ height: 56 }} />
+      <div className="skeleton skeleton-hero" />
+      <div className="skeleton" style={{ height: 56 }} />
+      <div className="skeleton" style={{ height: 76 }} />
     </div>
   );
 }
@@ -271,17 +268,12 @@ interface ErrorBannerProps {
 function ErrorBanner({ error, onRetry }: ErrorBannerProps) {
   if (error.kind === "missing_seed") {
     return (
-      <div className="empty-card">
-        <strong>No demo data yet.</strong>
-        <p style={{ margin: "6px 0 10px" }}>
+      <div className="notice">
+        <div className="notice__title">No demo data yet</div>
+        <p className="notice__body">
           Run <code>POST /demo/seed</code> against the backend, then retry.
         </p>
-        <button
-          type="button"
-          className="modal__close"
-          style={{ width: "auto", padding: "8px 14px" }}
-          onClick={onRetry}
-        >
+        <button type="button" className="notice__btn" onClick={onRetry}>
           Retry
         </button>
       </div>
@@ -290,38 +282,26 @@ function ErrorBanner({ error, onRetry }: ErrorBannerProps) {
 
   if (error.kind === "network") {
     return (
-      <div className="error-card">
-        <strong>Can't reach the SwiftPark backend.</strong>
-        Start the FastAPI server on{" "}
-        <code>http://127.0.0.1:8000</code> and try again.
-        <div style={{ marginTop: 10 }}>
-          <button
-            type="button"
-            className="modal__close"
-            style={{ width: "auto", padding: "8px 14px" }}
-            onClick={onRetry}
-          >
-            Retry
-          </button>
-        </div>
+      <div className="notice notice--error">
+        <div className="notice__title">Can't reach the backend</div>
+        <p className="notice__body">
+          Start the FastAPI server on <code>http://127.0.0.1:8000</code> and try
+          again.
+        </p>
+        <button type="button" className="notice__btn" onClick={onRetry}>
+          Retry
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="error-card">
-      <strong>Something went wrong.</strong>
-      {error.message}
-      <div style={{ marginTop: 10 }}>
-        <button
-          type="button"
-          className="modal__close"
-          style={{ width: "auto", padding: "8px 14px" }}
-          onClick={onRetry}
-        >
-          Retry
-        </button>
-      </div>
+    <div className="notice notice--error">
+      <div className="notice__title">Something went wrong</div>
+      <p className="notice__body">{error.message}</p>
+      <button type="button" className="notice__btn" onClick={onRetry}>
+        Retry
+      </button>
     </div>
   );
 }

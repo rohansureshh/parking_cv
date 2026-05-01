@@ -2,9 +2,18 @@
 
 ## Current branch
 
-We are working on the `ui-revamp-base44-3d` branch.
+We are now working on `ui-revamp-mobile-polish`.
 
-The previous dashboard-style frontend was not approved. The new goal is to build a polished mobile-app-style SwiftPark UI using the Base44 export as a design and component reference.
+Phase 3A already added and wired the Three.js parking visualization.
+
+Phase 3B goal:
+Redesign the frontend into a polished mobile-app-style SwiftPark UI.
+
+The app should no longer feel like an admin dashboard. It should feel like a premium mobile parking app inspired by:
+- the original SwiftPark mobile mockup
+- the Base44 parking visualization design
+
+ParkingGarage3D should remain the hero visualization.
 
 ## Project summary
 
