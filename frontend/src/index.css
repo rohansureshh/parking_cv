@@ -884,3 +884,154 @@ button:disabled { cursor: not-allowed; }
 .notice__btn:hover { background: var(--brand-strong); }
 .notice--error  { border-color: #fecaca; background: #fff7f7; }
 .notice--error .notice__title { color: #b91c1c; }
+
+/* ──────────────────────────────────────────────────────────────
+   Splash screen
+   ────────────────────────────────────────────────────────────── */
+
+.splash {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Negate .app-shell's padding so the splash reads full-bleed inside
+     the phone shell on desktop, while still respecting the rounded card. */
+  margin: -18px -16px -28px;
+  border-radius: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(900px 600px at 50% -10%, rgba(37, 99, 235, 0.10), transparent 65%),
+    radial-gradient(560px 360px at 50% 56%, rgba(251, 191, 36, 0.07), transparent 70%),
+    radial-gradient(800px 600px at 50% 110%, rgba(99, 102, 241, 0.08), transparent 60%),
+    var(--surface);
+  animation: splash-fade-out 280ms ease 1720ms both;
+}
+
+@media (min-width: 700px) {
+  .splash { margin: -22px -18px -26px; }
+}
+
+.splash__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  padding: 32px 24px 80px;
+}
+
+.splash__logo {
+  width: 200px;
+  max-width: 60%;
+  height: auto;
+  filter: drop-shadow(0 18px 28px rgba(37, 99, 235, 0.28))
+          drop-shadow(0 4px 10px rgba(15, 23, 42, 0.10));
+  animation: splash-pin-in 620ms cubic-bezier(0.22, 1, 0.36, 1) both,
+             splash-pin-bob 2600ms ease-in-out 700ms infinite;
+}
+
+.splash__wordmark {
+  margin-top: 16px;
+  font-size: 40px;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  animation: splash-rise-in 460ms cubic-bezier(0.22, 1, 0.36, 1) 140ms both;
+}
+.splash__wordmark .swift { color: var(--ink); }
+.splash__wordmark .park  { color: var(--brand); }
+
+.splash__tagline {
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.005em;
+  animation: splash-rise-in 460ms cubic-bezier(0.22, 1, 0.36, 1) 260ms both;
+}
+
+.splash__scene {
+  width: 100%;
+  margin-top: 28px;
+  animation: splash-rise-in 560ms cubic-bezier(0.22, 1, 0.36, 1) 380ms both;
+}
+
+.splash__scene-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.splash__loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  animation: splash-rise-in 460ms cubic-bezier(0.22, 1, 0.36, 1) 560ms both;
+}
+
+.splash__spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--brand-soft);
+  border-top-color: var(--brand);
+  animation: spin 800ms linear infinite;
+}
+
+.splash__loader-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.005em;
+}
+
+.splash__progress {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  width: 120px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--hairline-2);
+  transform: translateX(-50%);
+  overflow: hidden;
+}
+
+.splash__progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+  border-radius: inherit;
+  animation-name: splash-progress;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+  /* duration is set inline from React via the style prop */
+}
+
+@keyframes splash-pin-in {
+  0%   { opacity: 0; transform: translateY(-18px) scale(0.88); }
+  60%  { opacity: 1; transform: translateY(2px) scale(1.04); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes splash-pin-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+
+@keyframes splash-rise-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes splash-fade-out {
+  to { opacity: 0; }
+}
+
+@keyframes splash-progress {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
