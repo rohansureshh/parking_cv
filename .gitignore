@@ -1,4 +1,13 @@
-
-
+venv/
+__pycache__/
+*.pyc
+.env
+node_modules/
+dist/
+.DS_Store\
 spots.json
 yolov8n.pt
+design-reference/
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
