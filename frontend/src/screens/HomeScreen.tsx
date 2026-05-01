@@ -1,7 +1,4 @@
-import { useEffect, useState } from "react";
-
-import { fetchOccupancy } from "../lib/api";
-import type { Occupancy } from "../lib/types";
+import { DEMO_FALLBACK, useOccupancy } from "../lib/occupancyCache";
 
 interface HomeScreenProps {
   onSelectGarage: () => void;
@@ -35,38 +32,30 @@ interface MockMarker {
  * looks complete.
  */
 export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
-  const [occupancy, setOccupancy] = useState<Occupancy | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const data = await fetchOccupancy();
-        if (!cancelled) setOccupancy(data);
-      } catch {
-        // Silent fall-through to demo defaults; Home should always render.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { occupancy, ready } = useOccupancy();
 
   const liveAvailable = occupancy?.available ?? 42;
   const liveCapacity = occupancy?.capacity ?? 120;
-  const garageName = occupancy?.lot_name ?? "Metro Center Garage";
-  const garageAddress = occupancy?.location ?? "200 W High St, Downtown";
+  const garageName = occupancy?.lot_name ?? DEMO_FALLBACK.garageName;
+  const garageAddress = occupancy?.location ?? DEMO_FALLBACK.garageAddress;
 
+  // Hard-coded busy / full pins always render. The primary blue pin is
+  // gated on `ready` so its count never flashes from a fallback to the
+  // real value during the initial fetch.
   const markers: MockMarker[] = [
     { id: "busy", status: "busy", count: 12, top: "26%", left: "22%" },
     { id: "full", status: "full", count: 2, top: "23%", left: "73%" },
-    {
-      id: "primary",
-      status: "available",
-      count: liveAvailable,
-      top: "50%",
-      left: "32%",
-    },
+    ...(ready
+      ? [
+          {
+            id: "primary",
+            status: "available" as MarkerStatus,
+            count: liveAvailable,
+            top: "50%",
+            left: "32%",
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -109,7 +98,17 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
       <article className="home__card">
         <div className="home__card-row">
           <div className="home__card-info">
-            <h3 className="home__card-title">{garageName}</h3>
+            <h3 className="home__card-title">
+              {ready ? (
+                garageName
+              ) : (
+                <span
+                  className="demo-skel demo-skel--ink"
+                  style={{ width: 170 }}
+                  aria-hidden="true"
+                />
+              )}
+            </h3>
             <div className="home__card-meta">0.2 mi away · 2 min walk</div>
             <div className="home__card-rating">
               <StarIcon />
@@ -117,14 +116,34 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
               <span className="home__card-rating-count">(362)</span>
             </div>
             <div className="home__card-spots">
-              <span className="home__card-spot-count">{liveAvailable}</span>
-              <span className="home__card-spot-of">/ {liveCapacity}</span>
+              {ready ? (
+                <>
+                  <span className="home__card-spot-count">{liveAvailable}</span>
+                  <span className="home__card-spot-of">/ {liveCapacity}</span>
+                </>
+              ) : (
+                <span
+                  className="demo-skel demo-skel--ink"
+                  style={{ width: 64, height: "1em" }}
+                  aria-hidden="true"
+                />
+              )}
               <span className="home__card-spot-label">spots available</span>
             </div>
           </div>
           <GarageThumb />
         </div>
-        <div className="home__card-address">{garageAddress}</div>
+        <div className="home__card-address">
+          {ready ? (
+            garageAddress
+          ) : (
+            <span
+              className="demo-skel demo-skel--ink"
+              style={{ width: 200 }}
+              aria-hidden="true"
+            />
+          )}
+        </div>
         <button
           type="button"
           className="home__card-cta"
