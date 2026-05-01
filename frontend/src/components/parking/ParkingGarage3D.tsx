@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import type { Spot } from "../../lib/types";
+import {
+  pickModelForSpot,
+  preloadCarModels,
+  spawnCarFromModel,
+} from "./carModelLoader";
 
 // ──────────────────────────────────────────────────────────────────────
 // World units (≈ meters)
@@ -116,6 +121,15 @@ function hashCode(str: string): number {
 }
 
 function disposeObject3D(obj: THREE.Object3D) {
+  // Wrappers around cached GLB clones share their geometry and materials
+  // with the loader's cache. We must NOT dispose those — but we DO need to
+  // dispose the per-spot tinted material clones the loader created for us.
+  if (obj.userData.shared) {
+    const tinted = obj.userData.tintedMaterials as THREE.Material[] | undefined;
+    if (tinted) tinted.forEach((m) => m.dispose());
+    return;
+  }
+
   const mesh = obj as THREE.Mesh;
   if (mesh.geometry) mesh.geometry.dispose();
   if (mesh.material) {
@@ -559,6 +573,7 @@ function buildSpotMeshes(
   spots: Spot[],
   selectedSpot: Spot | null,
   layout: FloorLayout,
+  useExternalCars: boolean,
 ): BuiltSpots {
   const meshes: THREE.Mesh[] = [];
   const extras: THREE.Object3D[] = [];
@@ -663,10 +678,29 @@ function buildSpotMeshes(
       extras.push(label);
     }
 
-    // Car for occupied spots
+    // Car for occupied spots — prefer the loaded GLB models, fall back to
+    // the procedural Tesla-ish car if the loader hasn't completed or
+    // returned no usable models.
     if (spot.status === "occupied") {
-      const car = buildCar(scene, x, z, hashCode(spot.id) % CAR_COLORS.length);
-      extras.push(car);
+      let placed: THREE.Object3D | null = null;
+      if (useExternalCars) {
+        const entry = pickModelForSpot(spot.id);
+        if (entry) {
+          try {
+            const car = spawnCarFromModel(entry, SPOT_W, SPOT_D, SPOT_H, spot.id);
+            car.position.set(x, 0, z);
+            scene.add(car);
+            placed = car;
+          } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn("[SwiftPark] GLB clone failed for", spot.id, err);
+          }
+        }
+      }
+      if (!placed) {
+        placed = buildCar(scene, x, z, hashCode(spot.id) % CAR_COLORS.length);
+      }
+      extras.push(placed);
     }
   });
 
@@ -735,10 +769,29 @@ export default function ParkingGarage3D({
   const spotsRef = useRef(spots);
   const selectedRef = useRef(selectedSpot);
   const onSelectRef = useRef(onSelectSpot);
+  const useExternalCarsRef = useRef(false);
+
+  // Flips `true` once at least one GLB has loaded successfully. Until then
+  // (or if every load failed) we keep showing the procedural cars.
+  const [useExternalCars, setUseExternalCars] = useState(false);
+  useEffect(() => { useExternalCarsRef.current = useExternalCars; }, [useExternalCars]);
 
   useEffect(() => { spotsRef.current = spots; }, [spots]);
   useEffect(() => { selectedRef.current = selectedSpot; }, [selectedSpot]);
   useEffect(() => { onSelectRef.current = onSelectSpot; }, [onSelectSpot]);
+
+  // Kick off the GLB preload once. Idempotent — `preloadCarModels` caches
+  // its promise. If every model fails the resolved array is empty and we
+  // stay on procedural cars.
+  useEffect(() => {
+    let cancelled = false;
+    preloadCarModels().then((entries) => {
+      if (!cancelled && entries.length > 0) {
+        setUseExternalCars(true);
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Initial Three.js scene setup — runs once per mount.
   useEffect(() => {
@@ -800,6 +853,7 @@ export default function ParkingGarage3D({
     const garageGroup = buildGarageStructure(scene, initialLayout);
     const built = buildSpotMeshes(
       scene, spotsRef.current, selectedRef.current, initialLayout,
+      useExternalCarsRef.current,
     );
 
     const state: InternalState = {
@@ -872,10 +926,12 @@ export default function ParkingGarage3D({
       s.layout = next;
     }
 
-    const built = buildSpotMeshes(s.scene, spots, selectedSpot, s.layout);
+    const built = buildSpotMeshes(
+      s.scene, spots, selectedSpot, s.layout, useExternalCars,
+    );
     s.spotMeshes = built.meshes;
     s.spotExtras = built.extras;
-  }, [spots, selectedSpot]);
+  }, [spots, selectedSpot, useExternalCars]);
 
   // Recenter the camera when the parent bumps viewVersion. We skip the
   // initial value because the scene already starts at the default angle.
