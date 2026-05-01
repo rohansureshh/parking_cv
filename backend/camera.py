@@ -90,4 +90,58 @@ class CameraWorker:
         """Stop the background thread."""
         self._running = False
 
-    
+    # ------------------------------------------------------------------
+    # Background thread
+    # ------------------------------------------------------------------
+
+    def _run(self):
+        while self._running:
+            cap = cv2.VideoCapture(self.source)
+            if not cap.isOpened():
+                print(f"ERROR: Could not open video source: {self.source}")
+                return
+
+            frame_idx = 0
+            while self._running:
+                ret, frame = cap.read()
+
+                if not ret:
+                    # End of video file
+                    if self.loop_video:
+                        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # rewind
+                        continue
+                    else:
+                        print("Video ended.")
+                        self._running = False
+                        break
+
+                frame_idx += 1
+                if frame_idx % self.frame_skip != 0:
+                    continue
+
+                # Run detection
+                result = self.detector.process_frame(frame)
+
+                # Build snapshot
+                snapshot = OccupancySnapshot(
+                    timestamp=datetime.now(timezone.utc),
+                    capacity=self.capacity,
+                    vehicles_detected=result.smoothed_count,
+                    available_spots=max(self.capacity - result.smoothed_count, 0),
+                    occupancy_pct=round(result.occupancy_pct, 3),
+                    status=compute_status(result.occupancy_pct),
+                    spots=[
+                        SpotStatus(spot_id=s.spot_id, is_occupied=s.is_occupied)
+                        for s in result.spots
+                    ],
+                )
+
+                # Write snapshot (thread-safe)
+                with self._lock:
+                    self._snapshot = snapshot
+
+                # Notify WebSocket subscribers
+                if self._on_update:
+                    self._on_update(snapshot)
+
+            cap.release()
