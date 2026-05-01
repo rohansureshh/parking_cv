@@ -143,3 +143,29 @@ def get_status():
     return snapshot
 
 
+# ------------------------------------------------------------------
+# WebSocket Endpoint
+# ------------------------------------------------------------------
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    Connect here to receive live occupancy updates as they happen
+
+    Each message is a JSON-serialized OccupancySnapshot.
+
+    The frontend connects once and receives updates pushed from the server,
+    rather than polling /status repeatedly.
+    """
+    await manager.connect(websocket)
+
+    # Send the current state immediately on connect
+    snapshot = worker.get_snapshot()
+    if snapshot:
+        await websocket.send_text(snapshot.model_dump_json())
+
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
