@@ -66,4 +66,28 @@ class CameraWorker:
         # WebSocket broadcast callback (set by main.py)
         self._on_update: Optional[Callable] = None
 
+    # ------------------------------------------------------------------
+    # Public interface
+    # ------------------------------------------------------------------
+
+    def set_update_callback(self, callback: Callable):
+        """Register a callback that fires whenever a new snapshot is ready."""
+        self._on_update = callback
+
+    def get_snapshot(self) -> Optional[OccupancySnapshot]:
+        """Thread-safe read of the latest snapshot."""
+        with self._lock:
+            return self._snapshot
+
+    def start(self):
+        """Start the background detection thread."""
+        self._running = True
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+        print(f"Camera worker started: {self.source}")
+
+    def stop(self):
+        """Stop the background thread."""
+        self._running = False
+
     
