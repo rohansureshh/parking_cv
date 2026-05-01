@@ -4,19 +4,18 @@ import { SplashScreen } from "./screens/SplashScreen";
 import { HomeScreen } from "./screens/HomeScreen";
 import { GarageOverviewScreen } from "./screens/GarageOverviewScreen";
 import { NavigationScreen } from "./screens/NavigationScreen";
+import { ParkedConfirmationScreen } from "./screens/ParkedConfirmationScreen";
 import { SpotVisualizationScreen } from "./screens/SpotVisualizationScreen";
 import { INITIAL_SCREEN, type Screen } from "./lib/navigation";
 
 /**
  * Top-level screen router.
  *
- * Phase 4 will grow into:
+ * Phase 4 flow:
  *   splash → home → garage_overview → spot_visualization → navigation → parked
  *
- * Step 4 wires Splash → Home → GarageOverview → Navigation, with Garage
- * Overview's "View Spot Map" still routing to Spot Visualization. Parked is
- * not yet built; clicking "I've Parked" sets the screen to "parked", which
- * short-circuits to Spot Viz so the demo never lands on a blank page.
+ * Step 5 wires Splash → Home → GarageOverview → Navigation → ParkedConfirmation,
+ * with Garage Overview's "View Spot Map" still routing to Spot Visualization.
  */
 function App() {
   const [screen, setScreen] = useState<Screen>(INITIAL_SCREEN);
@@ -58,9 +57,10 @@ function App() {
           onParked={goParked}
         />
       )}
-      {(screen.kind === "spot_visualization" || screen.kind === "parked") && (
-        <SpotVisualizationScreen />
+      {screen.kind === "parked" && (
+        <ParkedConfirmationScreen onBackToMap={goHome} />
       )}
+      {screen.kind === "spot_visualization" && <SpotVisualizationScreen />}
     </div>
   );
 }
