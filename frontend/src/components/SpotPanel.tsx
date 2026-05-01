@@ -10,34 +10,43 @@ export function SpotPanel({ spot, onConfirm, onClose }: SpotPanelProps) {
   const confidencePct = Math.round(spot.confidence * 100);
 
   return (
-    <aside className="spot-panel" aria-label="Selected spot details">
-      <div className="spot-panel__head">
-        <span className="spot-panel__title">Selected spot</span>
+    <aside className="sheet" aria-label="Selected spot details">
+      <div className="sheet__grip" aria-hidden="true" />
+
+      <div className="sheet__row">
+        <div className="sheet__badge">{spot.label}</div>
+        <div className="sheet__copy">
+          <div className="sheet__title">Spot {spot.label}</div>
+          <div className="sheet__meta">
+            Level {spot.level} · Available · {confidencePct}% confidence
+          </div>
+        </div>
         <button
           type="button"
-          className="spot-panel__close"
+          className="sheet__close"
           aria-label="Clear selection"
           onClick={onClose}
         >
-          ×
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
         </button>
-      </div>
-
-      <div className="spot-panel__body">
-        <div className="spot-panel__icon">{spot.label}</div>
-        <div>
-          <div className="spot-panel__label-line">Spot {spot.label}</div>
-          <div className="spot-panel__meta-line">
-            Level {spot.level} · {spot.status} · {confidencePct}% confidence
-          </div>
-        </div>
       </div>
 
       <button
         type="button"
-        className="spot-panel__cta"
+        className="sheet__cta"
         onClick={onConfirm}
       >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path
+            d="M2.5 7.2L5.5 10L11.5 4"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
         Select Spot
       </button>
     </aside>
