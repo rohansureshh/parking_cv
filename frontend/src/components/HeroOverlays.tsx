@@ -8,13 +8,15 @@ interface HeroOverlaysProps {
 }
 
 /**
- * Small absolutely-positioned chrome over the 3D viewport:
- *   - top-left "3D" mode chip (decorative)
- *   - top-right recenter button
+ * Floating chrome above the 3D viewport.
+ *
+ *   - top-left  "3D" mode chip (decorative)
+ *   - top-right "recenter" target button
+ *   - bottom-right floor badge
  *   - top-center auto-dismissing gesture hint
  *
  * The wrapper is `pointer-events: none` and individual interactive
- * elements opt back in, so canvas drag/tap still works.
+ * children opt back in, so canvas drag/tap still works.
  */
 export function HeroOverlays({
   activeLevel,
@@ -24,23 +26,32 @@ export function HeroOverlays({
   return (
     <div className="hero__overlays" aria-hidden={false}>
       <div className="hero__chip">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path
             d="M12 3l8.7 5v8L12 21l-8.7-5V8L12 3z"
             stroke="currentColor"
-            strokeWidth="1.8"
+            strokeWidth="1.7"
             strokeLinejoin="round"
+            fill="none"
           />
           <path
             d="M3.3 8L12 13l8.7-5M12 13v8"
             stroke="currentColor"
-            strokeWidth="1.8"
+            strokeWidth="1.7"
             strokeLinejoin="round"
+            fill="none"
           />
         </svg>
         <span>3D</span>
-        <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true">
-          <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <svg width="9" height="9" viewBox="0 0 12 12" aria-hidden="true">
+          <path
+            d="M3 4.5L6 7.5L9 4.5"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </div>
 
@@ -50,13 +61,21 @@ export function HeroOverlays({
         onClick={onRecenter}
         aria-label="Recenter view"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path
-            d="M3 11l18-8-8 18-2-8-8-2z"
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle
+            cx="8"
+            cy="8"
+            r="4.5"
             stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinejoin="round"
+            strokeWidth="1.5"
             fill="none"
+          />
+          <circle cx="8" cy="8" r="1.4" fill="currentColor" />
+          <path
+            d="M8 1v2M8 13v2M1 8h2M13 8h2"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
           />
         </svg>
       </button>
@@ -71,8 +90,10 @@ export function HeroOverlays({
       {showHint && (
         <div className="hero__hint" role="status">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M2 12a10 10 0 1019.7-2.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-            <path d="M22 4v6h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            <path
+              d="M12 2 8 6h3v6H5v3l-4-4 4-4v3h6V8h-3z"
+              fill="currentColor"
+            />
           </svg>
           Drag to rotate · Tap a blue spot
         </div>

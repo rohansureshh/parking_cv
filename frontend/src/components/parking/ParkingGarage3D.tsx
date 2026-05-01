@@ -13,53 +13,68 @@ import {
 const SPOT_W = 2.4;
 const SPOT_D = 4.8;
 const SPOT_H = 0.08;
-const GAP = 0.16;
-const LANE_W = 5.8;
+const COL_GAP = 0.30;          // between adjacent stalls in the same row
+const ROW_GAP = 0.40;          // between back-to-back rows (Z direction)
+const LANE_W = 5.4;            // realistic single-lane drive aisle width
 
 const SLAB_HEIGHT = 0.25;
 const SLAB_PAD_X = 6.5;
 const SLAB_PAD_Z = 3.6;
 const CEILING_Y = 3.6;
 
-// Showroom palette — mostly silvers/blacks/whites with one accent blue.
-// One car per "garage" tends to be the brand-blue Model 3 hero.
+// Showroom palette for the procedural fallback car — mostly
+// silvers/blacks/whites with a refined navy accent (matches the GLB
+// SHOWROOM_COLORS so both pipelines look consistent).
 const CAR_COLORS = [
   0x1e293b, 0x111827, 0x334155, 0x475569,
   0x64748b, 0xcbd5e1, 0xe2e8f0, 0xf8fafc,
-  0x2563eb,
+  0x1e3a8a,
 ];
 
-// Painted-line colors per status (the floor itself is light gray; spots
-// are indicated by tinted outlines, not solid pads).
+// Painted-line colors per status. Available now uses a soft brand blue at
+// higher opacity so empty stalls are clearly readable without screaming.
 const PAINT_COLOR = {
-  available: 0xffffff,
-  occupied: 0xfca5a5,   // rose-300, gives a warm coral glow
+  available: 0x60a5fa,  // blue-400 — softer brand blue, clearly visible
+  occupied: 0xfca5a5,   // rose-300 — warm coral glow around occupied stalls
   unknown: 0xcbd5e1,    // slate-300
   selected: 0x2563eb,   // brand blue
 } as const;
 
 const PAINT_OPACITY = {
-  available: 0.55,
+  available: 0.78,
   occupied: 0.85,
   unknown: 0.45,
   selected: 1.0,
 } as const;
 
 // ──────────────────────────────────────────────────────────────────────
-// Floor layout — adapts to spot count instead of hard-coding 16 spots.
-// Targets ~10 cols at n=40 (sqrt(2.5n) ≈ 10), capped to keep the lot
-// from going too wide on huge floors. Always splits rows evenly around
-// a central driving lane.
+// Floor layout — adapts to spot count, and switches to a realistic
+// double-loaded (two-aisle) plan once we have ≥4 rows. Each row carries
+// its own facing direction so cars in front rows and back rows nose-IN
+// toward their respective walls.
 // ──────────────────────────────────────────────────────────────────────
+interface RowInfo {
+  /** Z position of the row's center. */
+  z: number;
+  /**
+   * Direction the cars' noses point, after baked rotation.
+   *   "north" → -Z (rotated π around Y vs the model default)
+   *   "south" → +Z (model default)
+   */
+  facing: "north" | "south";
+}
+
 interface FloorLayout {
   cols: number;
-  rowsTop: number;
-  rowsBottom: number;
+  rows: RowInfo[];
+  /** Z positions of drive-aisle centers (1 entry for single-aisle, 2 for double). */
+  laneZs: number[];
+  /** When non-null, draws a low concrete dividing wall between back-to-back rows. */
+  centerWallZ: number | null;
   totalRows: number;
   totalW: number;
   floorW: number;
   floorD: number;
-  rowZ: number[];
   cameraRadius: number;
 }
 
@@ -68,31 +83,83 @@ function computeFloorLayout(numSpots: number): FloorLayout {
   const cols = safeN === 0
     ? 4
     : Math.min(14, Math.max(4, Math.round(Math.sqrt(safeN * 2.5))));
-  const totalRows = safeN === 0 ? 0 : Math.max(2, Math.ceil(safeN / cols));
-  const rowsTop = Math.ceil(totalRows / 2);
-  const rowsBottom = Math.max(0, totalRows - rowsTop);
+  const totalRows = safeN === 0 ? 0 : Math.max(1, Math.ceil(safeN / cols));
 
-  const totalW = cols * SPOT_W + Math.max(0, cols - 1) * GAP;
-  const topDepth = rowsTop > 0 ? rowsTop * SPOT_D + (rowsTop - 1) * GAP : 0;
-  const botDepth = rowsBottom > 0 ? rowsBottom * SPOT_D + (rowsBottom - 1) * GAP : 0;
+  const totalW = cols * SPOT_W + Math.max(0, cols - 1) * COL_GAP;
 
+  let rows: RowInfo[] = [];
+  let laneZs: number[] = [];
+  let centerWallZ: number | null = null;
+
+  if (totalRows === 1) {
+    rows = [{ z: 0, facing: "south" }];
+  } else if (totalRows === 2) {
+    // Single central aisle, double-loaded: cars on each side nose-IN to
+    // the outer walls, reverse out into the central lane.
+    const rowZ = LANE_W / 2 + SPOT_D / 2;
+    rows = [
+      { z: -rowZ, facing: "north" },
+      { z: +rowZ, facing: "south" },
+    ];
+    laneZs = [0];
+  } else if (totalRows === 3) {
+    // Single central aisle, asymmetric: 2 stacked rows north of the lane
+    // and 1 row south. Edge case — the inner north row is back-to-back
+    // with the outer north row without an aisle of its own (best we can
+    // do at this spot count without redesigning).
+    const closeZ = LANE_W / 2 + SPOT_D / 2;
+    const farZ = LANE_W / 2 + SPOT_D + ROW_GAP + SPOT_D / 2;
+    rows = [
+      { z: -farZ, facing: "north" },     // backs to north wall
+      { z: -closeZ, facing: "south" },   // faces the central aisle
+      { z: +closeZ, facing: "north" },   // faces the central aisle
+    ];
+    laneZs = [0];
+  } else {
+    // 4+ rows → realistic double-aisle plan:
+    //   [Row 0]  ← back-to-north-wall
+    //   ─ Aisle 1 ─
+    //   [Row 1]  ← back-to-center-wall
+    //   ┄ center wall ┄
+    //   [Row 2]  ← back-to-center-wall (back-to-back with Row 1)
+    //   ─ Aisle 2 ─
+    //   [Row 3]  ← back-to-south-wall
+    // Spots beyond cols × 4 are dropped (intentional cap for visual clarity).
+    const innerRowZ = SPOT_D / 2 + ROW_GAP / 2;
+    const aisleZ = innerRowZ + SPOT_D / 2 + LANE_W / 2;
+    const outerRowZ = aisleZ + LANE_W / 2 + SPOT_D / 2;
+    rows = [
+      { z: -outerRowZ, facing: "north" },  // backs to north wall, nose to north
+      { z: -innerRowZ, facing: "south" },  // backs to center wall, nose to south
+      { z: +innerRowZ, facing: "north" },  // backs to center wall, nose to north
+      { z: +outerRowZ, facing: "south" },  // backs to south wall, nose to south
+    ];
+    laneZs = [-aisleZ, +aisleZ];
+    centerWallZ = 0;
+  }
+
+  // Floor dimensions derived from the actual row span.
+  let minZ = -SPOT_D / 2;
+  let maxZ = +SPOT_D / 2;
+  rows.forEach((r) => {
+    minZ = Math.min(minZ, r.z - SPOT_D / 2);
+    maxZ = Math.max(maxZ, r.z + SPOT_D / 2);
+  });
   const floorW = Math.max(totalW + SLAB_PAD_X * 2, 18);
-  const floorD = Math.max(topDepth + botDepth + LANE_W + SLAB_PAD_Z * 2, 14);
-
-  const rowZ: number[] = [];
-  for (let i = 0; i < rowsTop; i++) {
-    rowZ.push(-(LANE_W / 2 + SPOT_D / 2 + i * (SPOT_D + GAP)));
-  }
-  for (let i = 0; i < rowsBottom; i++) {
-    rowZ.push((LANE_W / 2 + SPOT_D / 2 + i * (SPOT_D + GAP)));
-  }
+  const floorD = Math.max((maxZ - minZ) + SLAB_PAD_Z * 2, 14);
 
   const cameraRadius = Math.max(28, Math.max(floorW, floorD) * 0.92);
 
   return {
-    cols, rowsTop, rowsBottom, totalRows,
-    totalW, floorW, floorD,
-    rowZ, cameraRadius,
+    cols,
+    rows,
+    laneZs,
+    centerWallZ,
+    totalRows,
+    totalW,
+    floorW,
+    floorD,
+    cameraRadius,
   };
 }
 
@@ -162,66 +229,103 @@ function buildGarageStructure(scene: THREE.Scene, layout: FloorLayout): THREE.Gr
   floor.receiveShadow = true;
   group.add(floor);
 
-  // Lane surface — slightly cooler/darker than slab for contrast
-  const lane = new THREE.Mesh(
-    new THREE.PlaneGeometry(layout.floorW, LANE_W),
-    new THREE.MeshStandardMaterial({
-      color: 0xdde4ec,
-      roughness: 0.85,
-      metalness: 0.0,
-    }),
-  );
-  lane.rotation.x = -Math.PI / 2;
-  lane.position.y = 0.005;
-  lane.receiveShadow = true;
-  group.add(lane);
-
-  // Lane center dashes
-  const numDashes = Math.max(4, Math.floor(layout.floorW / 2.5));
-  const dashSpacing = layout.floorW / numDashes;
+  // ── Drive aisle(s) ──────────────────────────────────────────────────
+  // For double-loaded layouts there are two aisles; otherwise one.
+  const laneZs = layout.laneZs.length > 0 ? layout.laneZs : [0];
+  const laneSurfaceMat = new THREE.MeshStandardMaterial({
+    color: 0xdde4ec, roughness: 0.85, metalness: 0.0,
+  });
   const dashMat = new THREE.MeshBasicMaterial({
     color: 0xffffff, transparent: true, opacity: 0.65,
   });
-  for (let i = 0; i < numDashes; i++) {
-    const dash = new THREE.Mesh(
-      new THREE.PlaneGeometry(dashSpacing * 0.45, 0.1),
-      dashMat,
-    );
-    dash.rotation.x = -Math.PI / 2;
-    dash.position.set(-layout.floorW / 2 + dashSpacing * (i + 0.5), 0.011, 0);
-    group.add(dash);
-  }
-
-  // Driving direction arrows on the lane (every ~5 units, pointing east)
   const arrowMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff, transparent: true, opacity: 0.4,
+    color: 0xffffff, transparent: true, opacity: 0.45,
   });
+  const numDashes = Math.max(4, Math.floor(layout.floorW / 2.5));
+  const dashSpacing = layout.floorW / numDashes;
   const arrowSpacing = 5.0;
   const numArrows = Math.max(2, Math.floor((layout.floorW - 4) / arrowSpacing));
-  for (let i = 0; i < numArrows; i++) {
-    const ax = -layout.floorW / 2 + 2 + i * arrowSpacing + arrowSpacing / 2;
-    [-LANE_W / 4, LANE_W / 4].forEach((az) => {
+
+  // Only render the lane surface as a separate plane when it differs from
+  // the slab — otherwise it's redundant.
+  const drawLaneSurface = layout.laneZs.length > 0;
+
+  laneZs.forEach((laneZ, laneIdx) => {
+    if (drawLaneSurface) {
+      const lane = new THREE.Mesh(
+        new THREE.PlaneGeometry(layout.floorW, LANE_W),
+        laneSurfaceMat,
+      );
+      lane.rotation.x = -Math.PI / 2;
+      lane.position.set(0, 0.005, laneZ);
+      lane.receiveShadow = true;
+      group.add(lane);
+    }
+
+    // Center dashes for the lane
+    for (let i = 0; i < numDashes; i++) {
+      const dash = new THREE.Mesh(
+        new THREE.PlaneGeometry(dashSpacing * 0.45, 0.09),
+        dashMat,
+      );
+      dash.rotation.x = -Math.PI / 2;
+      dash.position.set(
+        -layout.floorW / 2 + dashSpacing * (i + 0.5),
+        0.011,
+        laneZ,
+      );
+      group.add(dash);
+    }
+
+    // Driving direction arrows. Alternate aisles flow opposite ways for
+    // a believable one-way circulation.
+    const flowSign = laneIdx % 2 === 0 ? 1 : -1;
+    for (let i = 0; i < numArrows; i++) {
+      const ax = -layout.floorW / 2 + 2 + i * arrowSpacing + arrowSpacing / 2;
       const arrow = new THREE.Group();
-      // Stem
       const stem = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.07), arrowMat);
       stem.rotation.x = -Math.PI / 2;
-      stem.position.set(0, 0.012, 0);
       arrow.add(stem);
-      // Two diagonal flicks forming the chevron head
       [-1, 1].forEach((s) => {
         const fl = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.07), arrowMat);
         fl.rotation.x = -Math.PI / 2;
         fl.rotation.z = s * Math.PI / 4;
-        fl.position.set(0.27, 0.012, s * 0.13);
+        fl.position.set(0.27, 0, s * 0.13);
         arrow.add(fl);
       });
-      arrow.position.set(ax, 0, az);
+      arrow.scale.x = flowSign;
+      arrow.position.set(ax, 0.012, laneZ);
       group.add(arrow);
-    });
-  }
+    }
+  });
 
   // Per-stall painted lines come from buildSpotMeshes (status-tinted),
   // so the shell only paints lane stripes — keeps the lot crisp.
+
+  // ── Center wall (only for double-aisle plans) ───────────────────────
+  if (layout.centerWallZ !== null) {
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0xc8d2dc, roughness: 0.55, metalness: 0.1,
+    });
+    const wall = new THREE.Mesh(
+      new THREE.BoxGeometry(layout.totalW + 1.0, 0.85, 0.28),
+      wallMat,
+    );
+    wall.position.set(0, 0.425, layout.centerWallZ);
+    wall.castShadow = true;
+    wall.receiveShadow = true;
+    group.add(wall);
+
+    // A subtle handrail cap on top of the wall.
+    const cap = new THREE.Mesh(
+      new THREE.BoxGeometry(layout.totalW + 1.05, 0.05, 0.34),
+      new THREE.MeshStandardMaterial({
+        color: 0xb8c2cc, roughness: 0.3, metalness: 0.55,
+      }),
+    );
+    cap.position.set(0, 0.875, layout.centerWallZ);
+    group.add(cap);
+  }
 
   // Slim structural columns — lighter color, more architectural
   const colMat = new THREE.MeshStandardMaterial({
@@ -260,8 +364,13 @@ function buildGarageStructure(scene: THREE.Scene, layout: FloorLayout): THREE.Gr
   const railMat = new THREE.MeshStandardMaterial({
     color: 0xb8c2cc, roughness: 0.35, metalness: 0.5,
   });
-  const farTopZ = layout.rowZ.length > 0 ? Math.min(...layout.rowZ) - SPOT_D / 2 - 0.6 : -layout.floorD / 2 + 1;
-  const farBotZ = layout.rowZ.length > 0 ? Math.max(...layout.rowZ) + SPOT_D / 2 + 0.6 : layout.floorD / 2 - 1;
+  const rowZsForRails = layout.rows.map((r) => r.z);
+  const farTopZ = rowZsForRails.length > 0
+    ? Math.min(...rowZsForRails) - SPOT_D / 2 - 0.6
+    : -layout.floorD / 2 + 1;
+  const farBotZ = rowZsForRails.length > 0
+    ? Math.max(...rowZsForRails) + SPOT_D / 2 + 0.6
+    : layout.floorD / 2 - 1;
 
   const buildRail = (z: number) => {
     // Top rail
@@ -294,7 +403,7 @@ function buildGarageStructure(scene: THREE.Scene, layout: FloorLayout): THREE.Gr
   buildRail(farTopZ);
   buildRail(farBotZ);
 
-  // LED ceiling strips — soft cool glow, parallel to the lane
+  // LED ceiling strips — soft cool glow, one strip pair per aisle.
   const lightMat = new THREE.MeshBasicMaterial({
     color: 0xf1faff,
     transparent: true,
@@ -302,19 +411,21 @@ function buildGarageStructure(scene: THREE.Scene, layout: FloorLayout): THREE.Gr
   });
   const stripCount = Math.max(4, Math.floor(layout.floorW / 5.0));
   const stripSpacing = layout.floorW / stripCount;
-  [-LANE_W / 2 - 2.0, LANE_W / 2 + 2.0].forEach((z) => {
-    for (let i = 0; i < stripCount; i++) {
-      const strip = new THREE.Mesh(
-        new THREE.BoxGeometry(stripSpacing * 0.6, 0.04, 0.16),
-        lightMat,
-      );
-      strip.position.set(
-        -layout.floorW / 2 + stripSpacing * (i + 0.5),
-        CEILING_Y - 0.18,
-        z,
-      );
-      group.add(strip);
-    }
+  laneZs.forEach((laneZ) => {
+    [-LANE_W / 2 - 1.4, LANE_W / 2 + 1.4].forEach((dz) => {
+      for (let i = 0; i < stripCount; i++) {
+        const strip = new THREE.Mesh(
+          new THREE.BoxGeometry(stripSpacing * 0.6, 0.04, 0.16),
+          lightMat,
+        );
+        strip.position.set(
+          -layout.floorW / 2 + stripSpacing * (i + 0.5),
+          CEILING_Y - 0.18,
+          laneZ + dz,
+        );
+        group.add(strip);
+      }
+    });
   });
 
   scene.add(group);
@@ -322,15 +433,22 @@ function buildGarageStructure(scene: THREE.Scene, layout: FloorLayout): THREE.Gr
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// Sleek EV — lower silhouette, smoother proportions, glossier paint
+// Sleek EV — lower silhouette, smoother proportions, satin paint
 // ──────────────────────────────────────────────────────────────────────
-function buildCar(scene: THREE.Scene, x: number, z: number, colorIndex: number): THREE.Group {
+function buildCar(
+  scene: THREE.Scene,
+  x: number,
+  z: number,
+  colorIndex: number,
+  facing: "north" | "south" = "south",
+): THREE.Group {
   const carGroup = new THREE.Group();
   const color = CAR_COLORS[colorIndex % CAR_COLORS.length];
 
-  // Use Standard materials for PBR-ish glossy paint
+  // Satin paint — slightly less metallic than before so the procedural
+  // fallback car matches the GLB pipeline's premium tuning.
   const bodyMat = new THREE.MeshStandardMaterial({
-    color, roughness: 0.32, metalness: 0.55,
+    color, roughness: 0.42, metalness: 0.4,
   });
   const darkMat = new THREE.MeshStandardMaterial({
     color: 0x0b1220, roughness: 0.55, metalness: 0.3,
@@ -513,6 +631,7 @@ function buildCar(scene: THREE.Scene, x: number, z: number, colorIndex: number):
   });
 
   carGroup.position.set(x, 0, z);
+  if (facing === "north") carGroup.rotation.y = Math.PI;
   scene.add(carGroup);
   return carGroup;
 }
@@ -584,19 +703,30 @@ function buildSpotMeshes(
   renderable.forEach((spot, idx) => {
     const rowIdx = Math.floor(idx / layout.cols);
     const colIdx = idx % layout.cols;
-    const z = layout.rowZ[rowIdx];
-    if (z === undefined) return;
-    const x = startX + colIdx * (SPOT_W + GAP);
+    const row = layout.rows[rowIdx];
+    if (!row) return;
+    const z = row.z;
+    const x = startX + colIdx * (SPOT_W + COL_GAP);
     const isSelected = selectedSpot?.id === spot.id;
 
-    // Invisible click target — always present so any spot can be raycast.
-    // Only "available" status fires the onSelect callback though.
+    // Click target — invisible for occupied/unknown (the car/outline carry
+    // the visual), faintly tinted for available so empty stalls are
+    // readable on the floor, brightly tinted for selected.
+    let padColor = 0xffffff;
+    let padOpacity = 0.0;
+    if (isSelected) {
+      padColor = 0x2563eb;
+      padOpacity = 0.20;
+    } else if (spot.status === "available") {
+      padColor = 0x60a5fa;
+      padOpacity = 0.10;
+    }
     const pad = new THREE.Mesh(
       new THREE.BoxGeometry(SPOT_W - 0.14, SPOT_H, SPOT_D - 0.14),
       new THREE.MeshBasicMaterial({
-        color: isSelected ? 0x2563eb : 0xffffff,
+        color: padColor,
         transparent: true,
-        opacity: isSelected ? 0.18 : 0.0,
+        opacity: padOpacity,
       }),
     );
     pad.position.set(x, SPOT_H / 2, z);
@@ -679,8 +809,8 @@ function buildSpotMeshes(
     }
 
     // Car for occupied spots — prefer the loaded GLB models, fall back to
-    // the procedural Tesla-ish car if the loader hasn't completed or
-    // returned no usable models.
+    // the procedural EV car if the loader hasn't completed or returned no
+    // usable models. The row's `facing` controls which way the car points.
     if (spot.status === "occupied") {
       let placed: THREE.Object3D | null = null;
       if (useExternalCars) {
@@ -689,6 +819,7 @@ function buildSpotMeshes(
           try {
             const car = spawnCarFromModel(entry, SPOT_W, SPOT_D, SPOT_H, spot.id);
             car.position.set(x, 0, z);
+            if (row.facing === "north") car.rotation.y = Math.PI;
             scene.add(car);
             placed = car;
           } catch (err) {
@@ -698,7 +829,11 @@ function buildSpotMeshes(
         }
       }
       if (!placed) {
-        placed = buildCar(scene, x, z, hashCode(spot.id) % CAR_COLORS.length);
+        placed = buildCar(
+          scene, x, z,
+          hashCode(spot.id) % CAR_COLORS.length,
+          row.facing,
+        );
       }
       extras.push(placed);
     }

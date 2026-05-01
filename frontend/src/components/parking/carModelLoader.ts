@@ -31,15 +31,24 @@ const MODEL_PATHS: ReadonlyArray<string> = [
   "/models/cars-bundle/Sports Car-1mkmFkAz5v.glb",
 ];
 
-// Premium showroom palette: whites, silvers, graphites, blacks, plus one
-// SwiftPark-blue accent (~10% of cars given the array length).
+// Premium showroom palette: whites, silvers, graphites, blacks, plus a
+// refined deep-blue accent (~9% of cars given the array length). 0x1e3a8a
+// (blue-900-ish) reads more "premium navy" than 0x2563eb under the cool
+// scene lighting and avoids the neon-blue look the brand-blue had in 3D.
 const SHOWROOM_COLORS: ReadonlyArray<number> = [
   0xf8fafc, 0xf1f5f9, 0xe2e8f0, // whites
-  0xcbd5e1, 0x94a3b8,            // silvers
+  0xcbd5e1, 0xa5b1c1,            // silvers
   0x64748b, 0x475569,            // graphites
   0x1e293b, 0x0f172a,            // blacks
-  0x2563eb,                      // SwiftPark blue accent
+  0x1e3a8a,                      // refined SwiftPark navy accent
 ];
+
+// Material classification — keep tight to avoid catching body materials by
+// accident (e.g., a body called "MainBody" must NOT match the glass regex).
+const GLASS_RE = /(?:^|[^a-z])(glass|window)(?:[^a-z]|$)/;
+const BODY_RE = /(?:^|[^a-z])(body|paint|carpaint|mainbody|chassis)(?:[^a-z]|$)/;
+const TAIL_LIGHT_RE = /tail.*(light|lamp)|rear.*light|brake.*light/;
+const HEAD_LIGHT_RE = /(head|drl|day|front).*(light|lamp)|headlamp/;
 
 export interface CarModelEntry {
   path: string;
@@ -78,25 +87,40 @@ function applyPremiumLook(root: THREE.Object3D): void {
       if (!(m instanceof THREE.MeshStandardMaterial)) return;
       const name = `${m.name || ""} ${mesh.name || ""}`.toLowerCase();
 
-      if (/glass|window|windshield|screen/.test(name)) {
+      // Universal safety: GLB exporters frequently flip `transparent: true`
+      // on materials whose alpha is effectively 1. That makes solid bodies
+      // render with depth-sort blending artifacts that look "translucent".
+      // Force them opaque before any further classification.
+      if (m.transparent && m.opacity >= 0.99) {
+        m.transparent = false;
+        m.depthWrite = true;
+      }
+
+      if (GLASS_RE.test(name)) {
         m.color.setHex(0x111c2e);
         m.transparent = true;
-        m.opacity = 0.78;
+        m.opacity = 0.6;
         m.roughness = 0.05;
-        m.metalness = 0.2;
-      } else if (/tail/.test(name) && /light|lamp/.test(name)) {
+        m.metalness = 0.6;
+        m.depthWrite = false;
+      } else if (TAIL_LIGHT_RE.test(name)) {
         if (m.emissive.getHex() === 0) {
           m.emissive.setHex(0xef4444);
-          m.emissiveIntensity = 0.7;
+          m.emissiveIntensity = 0.65;
         }
-      } else if (/(head|drl|day)/.test(name) && /light|lamp/.test(name)) {
+      } else if (HEAD_LIGHT_RE.test(name)) {
         if (m.emissive.getHex() === 0) {
           m.emissive.setHex(0xbfdbfe);
-          m.emissiveIntensity = 0.8;
+          m.emissiveIntensity = 0.7;
         }
-      } else if (/body|paint|main|car/.test(name)) {
-        m.metalness = 0.55;
-        m.roughness = 0.3;
+      } else if (BODY_RE.test(name)) {
+        // Premium satin paint — less neon than the previous 0.55/0.3 setup.
+        m.metalness = 0.42;
+        m.roughness = 0.42;
+        m.transparent = false;
+        m.opacity = 1.0;
+        m.depthWrite = true;
+        m.alphaTest = 0;
       }
     });
   });
@@ -218,6 +242,11 @@ export function spawnCarFromModel(
   const seed = hashCode(spotId);
   const tintColor = SHOWROOM_COLORS[seed % SHOWROOM_COLORS.length];
 
+  // Identify whether the chosen tint is the SwiftPark navy accent so we can
+  // dial in slightly different paint physics for it (deeper, less metallic
+  // → reads more "premium navy" rather than "neon blue plastic").
+  const isAccentBlue = tintColor === 0x1e3a8a;
+
   clone.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh) return;
@@ -225,12 +254,16 @@ export function spawnCarFromModel(
     if (mesh.material && !Array.isArray(mesh.material)) {
       const mat = mesh.material;
       const name = `${mat.name || ""} ${mesh.name || ""}`.toLowerCase();
-      if (/body|paint|main|car/.test(name) && mat instanceof THREE.MeshStandardMaterial) {
+      if (BODY_RE.test(name) && mat instanceof THREE.MeshStandardMaterial) {
         // Clone so per-spot tints don't leak back into the cached source.
         const cloned = mat.clone();
         cloned.color.setHex(tintColor);
-        cloned.metalness = 0.55;
-        cloned.roughness = 0.3;
+        cloned.metalness = isAccentBlue ? 0.32 : 0.42;
+        cloned.roughness = isAccentBlue ? 0.5 : 0.42;
+        cloned.transparent = false;
+        cloned.opacity = 1.0;
+        cloned.depthWrite = true;
+        cloned.alphaTest = 0;
         mesh.material = cloned;
         tinted.push(cloned);
       }
