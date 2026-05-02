@@ -20,6 +20,7 @@ class OccupancySnapshot(BaseModel):
     The core data object, represents the state of the lot at a point in time.
     This is what gets sent to the frontend via REST or WebSocket.
     """
+    # id
     timestamp: datetime
     capacity: int
     vehicles_detected: int

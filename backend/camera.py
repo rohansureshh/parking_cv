@@ -39,7 +39,7 @@ class CameraWorker:
         source: str,            # Vid file
         capacity: int = 100,
         model_path: str = "yolov8n.pt",
-        confidence: float = 0.4,
+        confidence: float = 0.25,
         spots_config: Optional[list] = None,
         frame_skip: int = 2,    # Process every Nth frame
         loop_video: bool = True, # TODO Remove this in prod, loop video for testing
@@ -54,6 +54,7 @@ class CameraWorker:
             model_path=model_path,
             capacity=capacity,
             confidence_threshold=confidence,
+            smoothing_window=30,
         )
         if spots_config:
             self.detector.load_spots(spots_config)
@@ -95,6 +96,8 @@ class CameraWorker:
     # ------------------------------------------------------------------
 
     def _run(self):
+
+        
         while self._running:
             cap = cv2.VideoCapture(self.source)
             if not cap.isOpened():
@@ -122,6 +125,11 @@ class CameraWorker:
                 # Run detection
                 result = self.detector.process_frame(frame)
 
+                # Show debug window
+                cv2.imshow("SwiftPark - Debug Feed", result.frame)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    self._running = False
+
                 # Build snapshot
                 snapshot = OccupancySnapshot(
                     timestamp=datetime.now(timezone.utc),
@@ -145,3 +153,4 @@ class CameraWorker:
                     self._on_update(snapshot)
 
             cap.release()
+            cv2.destroyAllWindows()

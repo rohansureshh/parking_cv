@@ -56,7 +56,7 @@ class ParkingDetector:
         self,
         model_path: str = "yolov8n.pt",   # nano = fastest and most accurate
         capacity: int = 100,               # Total number of spots in the lot
-        confidence_threshold: float = 0.4,
+        confidence_threshold: float = 0.25,
         smoothing_window: int = 30,         # Frames to average for count smoothing
         iou_threshold: float = 0.15,        # Overlap needed to mark a spot occupied
     ):
