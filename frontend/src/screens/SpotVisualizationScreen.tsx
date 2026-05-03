@@ -18,7 +18,19 @@ type LoadState =
   | { kind: "ready"; occupancy: Occupancy }
   | { kind: "error"; error: ApiError };
 
-export function SpotVisualizationScreen() {
+interface SpotVisualizationScreenProps {
+  /** When provided, the TopBar back button is enabled and routes back. */
+  onBack?: () => void;
+  /** When provided, the spot-confirmation modal's CTA reads "Start
+   *  Navigation" and calls this with the confirmed spot, handing the
+   *  selection off to the navigation flow. */
+  onStartNavigation?: (spot: Spot) => void;
+}
+
+export function SpotVisualizationScreen({
+  onBack,
+  onStartNavigation,
+}: SpotVisualizationScreenProps = {}) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
   const [confirmedSpot, setConfirmedSpot] = useState<Spot | null>(null);
@@ -150,6 +162,7 @@ export function SpotVisualizationScreen() {
         facilityStatus={occupancy?.facility_status}
         onRefresh={() => void refresh()}
         refreshing={refreshing}
+        onBack={onBack}
       />
 
       {state.kind === "loading" && <LoadingSkeleton />}
@@ -216,6 +229,7 @@ export function SpotVisualizationScreen() {
           spot={confirmedSpot}
           garageName={occupancy.lot_name}
           onClose={handleDismissConfirmation}
+          onStartNavigation={onStartNavigation}
         />
       )}
     </>

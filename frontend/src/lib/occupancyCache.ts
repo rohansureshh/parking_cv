@@ -14,6 +14,18 @@ export const DEMO_FALLBACK = {
 } as const;
 
 /**
+ * Minimal shape of a spot threaded through the navigation flow when the
+ * user explicitly chose one in Spot Visualization. NavigationScreen and
+ * ParkedConfirmationScreen both accept this as their `preselectedSpot`
+ * prop, and App.tsx holds it in state across the SpotViz → Nav → Parked
+ * handoff.
+ */
+export interface SelectedSpot {
+  label: string;
+  level: string;
+}
+
+/**
  * Module-level cache of the most recent successful occupancy fetch. Every
  * screen using `useOccupancy` shares this cache, so flowing
  * Splash → Home → Overview → Navigation only triggers a single fetch and

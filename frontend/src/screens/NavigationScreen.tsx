@@ -1,17 +1,22 @@
 import { useMemo } from "react";
 
-import { DEMO_FALLBACK, useOccupancy } from "../lib/occupancyCache";
+import {
+  DEMO_FALLBACK,
+  type SelectedSpot,
+  useOccupancy,
+} from "../lib/occupancyCache";
 
 interface NavigationScreenProps {
   onBack: () => void;
   onCancel: () => void;
   onParked: () => void;
+  /** When provided, the navigation flow targets this specific spot instead
+   *  of falling back to the first available spot in the cache. Set when the
+   *  user explicitly selected and confirmed a spot in Spot Visualization. */
+  preselectedSpot?: SelectedSpot;
 }
 
-interface TargetSpot {
-  label: string;
-  level: string;
-}
+type TargetSpot = SelectedSpot;
 
 const FALLBACK = {
   garageName: DEMO_FALLBACK.garageName,
@@ -39,17 +44,19 @@ export function NavigationScreen({
   onBack,
   onCancel,
   onParked,
+  preselectedSpot,
 }: NavigationScreenProps) {
   const { occupancy, ready } = useOccupancy();
 
   const garageName = occupancy?.lot_name ?? FALLBACK.garageName;
 
   const targetSpot: TargetSpot = useMemo(() => {
+    if (preselectedSpot) return preselectedSpot;
     if (!occupancy) return FALLBACK.spot;
     const open = occupancy.spots.find((s) => s.status === "available");
     if (!open) return FALLBACK.spot;
     return { label: open.label, level: open.level };
-  }, [occupancy]);
+  }, [preselectedSpot, occupancy]);
 
   const arrivalTime = useMemo(() => {
     const future = new Date(Date.now() + 3 * 60 * 1000);

@@ -13,7 +13,7 @@ export type Screen =
   | { kind: "home" }
   | { kind: "garage_overview" }
   | { kind: "spot_visualization" }
-  | { kind: "navigation"; spotId: string }
-  | { kind: "parked"; spotId: string };
+  | { kind: "navigation" }
+  | { kind: "parked" };
 
 export const INITIAL_SCREEN: Screen = { kind: "splash" };

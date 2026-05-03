@@ -1,15 +1,20 @@
 import { useEffect, useState } from "react";
 
-import { DEMO_FALLBACK, useOccupancy } from "../lib/occupancyCache";
+import {
+  DEMO_FALLBACK,
+  type SelectedSpot,
+  useOccupancy,
+} from "../lib/occupancyCache";
 
 interface ParkedConfirmationScreenProps {
   onBackToMap: () => void;
+  /** When provided, this spot is shown as the confirmed parking spot
+   *  immediately on mount, regardless of cache contents. Threaded through
+   *  from SpotVisualization → Navigation → Parked. */
+  preselectedSpot?: SelectedSpot;
 }
 
-interface FrozenSpot {
-  label: string;
-  level: string;
-}
+type FrozenSpot = SelectedSpot;
 
 interface FrozenState {
   spot: FrozenSpot;
@@ -39,24 +44,34 @@ type ShareStatus = "idle" | "shared" | "copied";
  */
 export function ParkedConfirmationScreen({
   onBackToMap,
+  preselectedSpot,
 }: ParkedConfirmationScreenProps) {
   const { occupancy } = useOccupancy();
   const [frozen, setFrozen] = useState<FrozenState | null>(null);
 
   useEffect(() => {
     if (frozen) return;
-    if (!occupancy) return;
-    const open = occupancy.spots.find((s) => s.status === "available");
-    setFrozen({
-      spot: open
+
+    // Prefer the spot the user explicitly chose. If we don't have it yet,
+    // wait for occupancy and pick the first available spot.
+    let spot: FrozenSpot | null = preselectedSpot ?? null;
+    if (!spot && occupancy) {
+      const open = occupancy.spots.find((s) => s.status === "available");
+      spot = open
         ? { label: open.label, level: open.level }
-        : FALLBACK_SPOT,
-      garage: {
-        name: occupancy.lot_name,
-        address: occupancy.location,
-      },
-    });
-  }, [occupancy, frozen]);
+        : FALLBACK_SPOT;
+    }
+    if (!spot) return; // nothing to show yet — wait for occupancy
+
+    const garage = occupancy
+      ? { name: occupancy.lot_name, address: occupancy.location }
+      : {
+          name: DEMO_FALLBACK.garageName,
+          address: DEMO_FALLBACK.garageAddress,
+        };
+
+    setFrozen({ spot, garage });
+  }, [occupancy, frozen, preselectedSpot]);
 
   const spot = frozen?.spot ?? FALLBACK_SPOT;
   const garageName = frozen?.garage.name ?? DEMO_FALLBACK.garageName;
