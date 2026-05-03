@@ -26,7 +26,7 @@ sys.path.append(os.path.normpath(cv_path))
 
 
 from detector import ParkingDetector
-from models import OccupancySnapshot, SpotStatus, compute_status
+from models import OccupancySnapshot, SpotStatus, compute_facility_status
 
 
 class CameraWorker:
@@ -131,7 +131,7 @@ class CameraWorker:
                     self._running = False
 
 
-                # status=compute_status(result.occupancy_pct),
+                # status=compute_facility_status(result.occupancy_pct),
 
                 # Build snapshot
                 snapshot = OccupancySnapshot(
@@ -139,7 +139,7 @@ class CameraWorker:
                     lot_slug="lot-1",
                     lot_name="Demo Parking Lot",
                     location="123 Main St",
-                    facility_status=compute_status(result.occupancy_pct),
+                    facility_status=compute_facility_status(result.occupancy_pct),
                     timestamp=datetime.now(timezone.utc),
                     capacity=self.capacity,
                     available=max(self.capacity - result.smoothed_count, 0),

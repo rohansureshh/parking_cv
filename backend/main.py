@@ -80,7 +80,7 @@ worker = CameraWorker(
 )
 
 def on_snapshot_update(snapshot: OccupancySnapshot):
-    print(f"Snapshot fired: {snapshot.vehicles_detected} vehicles")  
+    # print(f"Snapshot fired: {snapshot.vehicles_detected} vehicles")  
     data = snapshot.model_dump_json()
     try:
         loop = asyncio.get_event_loop()
