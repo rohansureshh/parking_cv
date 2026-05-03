@@ -31,18 +31,19 @@ const CAR_COLORS = [
   0x1e3a8a,
 ];
 
-// Painted-line colors per status. Available now uses a soft brand blue at
-// higher opacity so empty stalls are clearly readable without screaming.
+// Painted-line colors per status. Slightly bumped saturation so empty
+// stalls (blue) and occupied stalls (red) read clearly from across the
+// 3D view without overwhelming the scene.
 const PAINT_COLOR = {
-  available: 0x60a5fa,  // blue-400 — softer brand blue, clearly visible
-  occupied: 0xfca5a5,   // rose-300 — warm coral glow around occupied stalls
+  available: 0x3b82f6,  // blue-500 — confident brand blue, very readable
+  occupied: 0xf87171,   // rose-400 — clearer warning red than rose-300
   unknown: 0xcbd5e1,    // slate-300
   selected: 0x2563eb,   // brand blue
 } as const;
 
 const PAINT_OPACITY = {
-  available: 0.78,
-  occupied: 0.85,
+  available: 0.82,
+  occupied: 0.88,
   unknown: 0.45,
   selected: 1.0,
 } as const;
@@ -718,8 +719,8 @@ function buildSpotMeshes(
       padColor = 0x2563eb;
       padOpacity = 0.20;
     } else if (spot.status === "available") {
-      padColor = 0x60a5fa;
-      padOpacity = 0.10;
+      padColor = 0x3b82f6;
+      padOpacity = 0.13;
     }
     const pad = new THREE.Mesh(
       new THREE.BoxGeometry(SPOT_W - 0.14, SPOT_H, SPOT_D - 0.14),

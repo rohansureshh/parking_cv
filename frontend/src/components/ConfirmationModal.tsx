@@ -5,12 +5,17 @@ interface ConfirmationModalProps {
   spot: Spot;
   garageName: string;
   onClose: () => void;
+  /** When provided, the primary CTA reads "Start Navigation" and calls this
+   *  with the confirmed spot. When omitted, the primary CTA falls back to
+   *  the original "Done" behavior (just close the modal). */
+  onStartNavigation?: (spot: Spot) => void;
 }
 
 export function ConfirmationModal({
   spot,
   garageName,
   onClose,
+  onStartNavigation,
 }: ConfirmationModalProps) {
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -63,10 +68,12 @@ export function ConfirmationModal({
         <button
           type="button"
           className="modal__close"
-          onClick={onClose}
+          onClick={
+            onStartNavigation ? () => onStartNavigation(spot) : onClose
+          }
           autoFocus
         >
-          Done
+          {onStartNavigation ? "Start Navigation" : "Done"}
         </button>
       </div>
     </div>

@@ -7,8 +7,6 @@ interface SpotPanelProps {
 }
 
 export function SpotPanel({ spot, onConfirm, onClose }: SpotPanelProps) {
-  const confidencePct = Math.round(spot.confidence * 100);
-
   return (
     <aside className="sheet" aria-label="Selected spot details">
       <div className="sheet__grip" aria-hidden="true" />
@@ -17,9 +15,7 @@ export function SpotPanel({ spot, onConfirm, onClose }: SpotPanelProps) {
         <div className="sheet__badge">{spot.label}</div>
         <div className="sheet__copy">
           <div className="sheet__title">Spot {spot.label}</div>
-          <div className="sheet__meta">
-            Level {spot.level} · Available · {confidencePct}% confidence
-          </div>
+          <div className="sheet__meta">Level {spot.level} · Available</div>
         </div>
         <button
           type="button"

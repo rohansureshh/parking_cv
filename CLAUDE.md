@@ -2,158 +2,97 @@
 
 ## Current branch
 
-We are now working on `ui-revamp-mobile-polish`.
+We are working on `phase-4-claude-redesign`.
 
-Phase 3A already added and wired the Three.js parking visualization.
+We are restarting Phase 4 from the current main branch.
 
-Phase 3B goal:
-Redesign the frontend into a polished mobile-app-style SwiftPark UI.
+The previous Codex Phase 4A implementation was rejected visually. It created a rough app flow, but the UI quality was poor and did not match the original SwiftPark mockup closely enough.
 
-The app should no longer feel like an admin dashboard. It should feel like a premium mobile parking app inspired by:
-- the original SwiftPark mobile mockup
-- the Base44 parking visualization design
+Do not use the Codex Phase 4A screens as the visual standard.
 
-ParkingGarage3D should remain the hero visualization.
+## Current good baseline
 
-## Project summary
+The current main branch has the approved Phase 3C hero screen:
 
-SwiftPark uses existing parking garage camera footage and computer vision to detect which parking spots are available, occupied, or unknown.
-
-The frontend should show:
-- a polished mobile-app experience
+- polished Spot Visualization screen
 - SwiftPark branding
-- tagline: "Stress less. Park better."
-- garage availability
-- selected floor
-- 3D or high-quality 2.5D parking spot visualization
+- 3D parking garage hero visualization
+- external GLB car models
+- floor selector
 - selected spot flow
-- detection simulation updates
+- Run Detection Simulation button
+- FastAPI-only frontend integration
 
-## Existing repo
+Preserve this existing Phase 3C Spot Visualization screen.
 
-The original repo contains:
-- detector.py: YOLOv8-based parking detector
-- run.py: runs detector on videos
-- calibrate.py: creates spot polygons
-- test videos
+## Product flow we want
+
+The target app flow is:
+
+Splash → Home / map-style screen → Garage Overview → Spot Visualization → Navigation → Parked Confirmation
+
+Build this flow one polished screen at a time.
+
+## Visual direction
+
+Use the original SwiftPark multi-screen mockup as the primary design reference.
+
+The app should feel:
+- polished
+- iPhone-style
+- blue-and-white
+- clean and premium
+- investor/demo-ready
+- close to the original SwiftPark mockup
+
+Branding:
+- SwiftPark wordmark
+- “Swift” in dark text
+- “Park” in blue
+- tagline: “Stress less. Park better.”
+- blue parking pin / P icon style
+
+## Important constraints
 
 Do not modify:
 - detector.py
 - run.py
 - calibrate.py
+- backend Python
+- Supabase logic
+- .env
 
-unless explicitly asked.
+Do not add:
+- real maps
+- real GPS
+- auth
+- payments
+- cloud deployment
+- @base44/sdk
 
-## Backend
-
-The backend is FastAPI and Supabase-backed.
+Do not expose Supabase keys in the frontend.
 
 Frontend should call FastAPI only.
-
-Do not call Supabase directly from the frontend.
-Do not expose Supabase keys in the frontend.
 
 Backend local URL:
 http://127.0.0.1:8000
 
-Current endpoints:
+Current backend endpoints:
 - GET /health
 - POST /demo/seed
 - GET /demo/occupancy
 - POST /demo/simulate-detection
 
-## Supabase data shape
+## Build approach
 
-Parking spots have:
-- id
-- label
-- level
-- status: "available", "occupied", or "unknown"
-- confidence
+Build one screen at a time.
 
-## Base44 reference
+Do not build the full Phase 4 flow in one giant pass.
 
-Use the Base44 export only as a design/component reference.
-
-Important reference:
-- design-reference/base44/src/components/parking/ParkingGarage3D.jsx
-
-Useful references:
-- SpotVisualization.jsx for mobile app layout
-- Splash.jsx for branding direction
-- ParkingConfirmation.jsx for confirmation styling
-- FloorAvailability.jsx for floor selector/list ideas
-
-Do not import the entire Base44 app blindly.
-
-Do not use:
-- @base44/sdk
-- Base44 auth
-- protected routes
-- maps
-- navigation
-- payments
-- cloud deployment
-
-## UI direction
-
-The new UI should feel like:
-- a real mobile parking app
-- iPhone-style
-- polished and investor-ready
-- clean blue-and-white SwiftPark theme
-- premium smart mobility product
-- not an admin dashboard
-
-Branding:
-- App name: SwiftPark
-- Tagline: "Stress less. Park better."
-- Primary color: blue
-- Available = blue
-- Occupied = red
-- Unknown = gray
-- Selected = bright blue glow/highlight
-
-## 3D visualization direction
-
-For this branch, a lightweight Three.js-based 3D parking visualization is allowed and encouraged.
-
-Goal:
-- use the Base44 ParkingGarage3D concept
-- adapt it to our backend spot data
-- show one selected floor at a time
-- support floor selection
-- occupied spots should show sleek simplified futuristic car models
-- car models should look refined, not like basic blocks
-- available spots should be clearly selectable
-- selected spots should glow/highlight
-
-If true 3D becomes unstable, fall back to a very polished 2.5D version, but do not revert to the old admin-style dashboard.
-
-## Scope
-
-Build:
-- mobile app shell
-- header/branding
-- garage summary
-- floor selector
-- 3D/premium parking visualization
-- selected spot panel
-- "Select Spot" confirmation
-- "Run Detection Simulation" button
-
-Do not build:
-- real GPS
-- Google Maps / Mapbox
-- real navigation
-- auth
-- payments
-- cloud deployment
-- native mobile app
-- production reservation system
-
-## UX wording
-
-Use "Select Spot", not "Reserve Spot".
-
-Reservations imply a transactional feature we have not built yet.
+Start with:
+1. Splash screen
+2. Home screen
+3. Garage Overview screen
+4. Navigation screen
+5. Parked Confirmation screen
+6. Final flow wiring and polish
