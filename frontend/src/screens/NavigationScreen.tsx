@@ -331,6 +331,7 @@ function NavMap() {
         strokeLinejoin="round"
         fill="none"
       />
+      {/* Long moving highlight band — primary motion cue. */}
       <path
         className="navigation__route-flow"
         d="M 80 430 L 80 256 Q 80 240 96 240 L 304 240 Q 320 240 320 224 L 320 130"
@@ -340,6 +341,20 @@ function NavMap() {
         strokeLinejoin="round"
         fill="none"
         strokeDasharray="32 90"
+      />
+      {/* Secondary thin pulse — locked to the SAME cycle length (122 px)
+          and SAME duration (3 s) as the primary. A −50 % phase offset via
+          animation-delay places the small dash exactly between two primary
+          bands, so the two layers travel in lockstep instead of drifting. */}
+      <path
+        className="navigation__route-flow-secondary"
+        d="M 80 430 L 80 256 Q 80 240 96 240 L 304 240 Q 320 240 320 224 L 320 130"
+        stroke="rgba(255,255,255,0.36)"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+        strokeDasharray="6 116"
       />
 
       {/* "You are here" — small contained halo + blue dot with directional

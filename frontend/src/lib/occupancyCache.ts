@@ -33,13 +33,57 @@ export interface SelectedSpot {
  */
 let cached: Occupancy | null = null;
 
+/**
+ * Single in-flight fetch promise — concurrent callers (e.g. App's prefetch
+ * during splash + Home's `useOccupancy` mount) share the same network call
+ * instead of racing two requests.
+ */
+let inFlight: Promise<Occupancy> | null = null;
+
+function ensureFetched(): Promise<Occupancy> {
+  if (cached) return Promise.resolve(cached);
+  if (inFlight) return inFlight;
+  inFlight = fetchOccupancy()
+    .then((data) => {
+      cached = data;
+      inFlight = null;
+      return data;
+    })
+    .catch((err) => {
+      inFlight = null;
+      throw err;
+    });
+  return inFlight;
+}
+
+/**
+ * Kick off a background fetch as early as possible (App mount). Resolves
+ * silently — callers that need the data should still go through
+ * `useOccupancy`. The point is to warm the cache during splash so the
+ * first real screen renders with data on its first paint.
+ */
+export function prefetchOccupancy(): void {
+  ensureFetched().catch(() => {
+    /* silent — useOccupancy callers handle the failure surface */
+  });
+}
+
+/**
+ * Manually update the shared cache. Used by SpotVisualization (which
+ * keeps its own state for the simulation/refresh UI) so a successful
+ * `simulate-detection` propagates to subsequent screens.
+ */
+export function setCachedOccupancy(data: Occupancy): void {
+  cached = data;
+}
+
 export interface OccupancySnapshot {
   occupancy: Occupancy | null;
   /**
-   * `true` once the API has resolved at least once (success OR failure) for
-   * this session. `false` only during the initial loading window when there
-   * is no cache and no resolved fetch yet — the only window in which a
-   * screen should render skeletons instead of fallback text.
+   * `true` once the API has resolved at least once (success OR failure)
+   * for this session. `false` only during the initial loading window
+   * when there is no cache and no resolved fetch yet — the only window
+   * in which a screen should render skeletons instead of fallback text.
    */
   ready: boolean;
 }
@@ -47,6 +91,7 @@ export interface OccupancySnapshot {
 /**
  * React hook exposing the shared occupancy snapshot. The state is seeded
  * from the module cache so re-mounts within the same session are instant.
+ * Multiple concurrent mounts share a single network call via `ensureFetched`.
  */
 export function useOccupancy(): OccupancySnapshot {
   const [occupancy, setOccupancy] = useState<Occupancy | null>(cached);
@@ -54,20 +99,18 @@ export function useOccupancy(): OccupancySnapshot {
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      try {
-        const data = await fetchOccupancy();
+    ensureFetched()
+      .then((data) => {
         if (!cancelled) {
-          cached = data;
           setOccupancy(data);
           setLoadFailed(false);
         }
-      } catch {
-        // Only flip into the fallback path if we have no cached value to
-        // fall back on. With a cached value we keep showing what we knew.
+      })
+      .catch(() => {
+        // Only flip into the fallback path if we have no cache. With
+        // a cached value we keep showing the previously known garage.
         if (!cancelled && cached === null) setLoadFailed(true);
-      }
-    })();
+      });
     return () => {
       cancelled = true;
     };

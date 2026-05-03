@@ -11,6 +11,7 @@ import { ConfirmationModal } from "../components/ConfirmationModal";
 import ParkingGarage3D from "../components/parking/ParkingGarage3D";
 
 import { ApiError, fetchOccupancy, simulateDetection } from "../lib/api";
+import { setCachedOccupancy } from "../lib/occupancyCache";
 import type { Occupancy, Spot } from "../lib/types";
 
 type LoadState =
@@ -41,6 +42,10 @@ export function SpotVisualizationScreen({
 
   const applyOccupancy = useCallback((occupancy: Occupancy) => {
     setState({ kind: "ready", occupancy });
+    // Keep the shared cache in sync so subsequent screens (Navigation,
+    // Parked, return-trip Home/Overview) see fresh data after a refresh
+    // or simulate-detection call.
+    setCachedOccupancy(occupancy);
     setSelectedSpotId((current) => {
       if (!current) return current;
       const spot = occupancy.spots.find((s) => s.id === current);

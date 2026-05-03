@@ -96,7 +96,13 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
       </button>
 
       <article className="home__card">
-        <div className="home__card-row">
+        {/* Header — title / meta / rating in the left column, thumbnail
+            on the right. Moving the rating INTO this column (instead of
+            below it) eliminates the awkward empty band that used to sit
+            between the meta line and the rating row. The thumbnail is
+            sized so both columns end at roughly the same vertical
+            position, giving the card a balanced, fluid composition. */}
+        <div className="home__card-header">
           <div className="home__card-info">
             <h3 className="home__card-title">
               {ready ? (
@@ -109,30 +115,42 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
                 />
               )}
             </h3>
-            <div className="home__card-meta">0.2 mi away · 2 min walk</div>
+            <div className="home__card-meta">
+              <span>0.2 mi away</span>
+              <span className="home__card-meta-dot" aria-hidden="true">·</span>
+              <span>2 min walk</span>
+            </div>
             <div className="home__card-rating">
               <StarIcon />
               <span className="home__card-rating-num">4.6</span>
-              <span className="home__card-rating-count">(362)</span>
-            </div>
-            <div className="home__card-spots">
-              {ready ? (
-                <>
-                  <span className="home__card-spot-count">{liveAvailable}</span>
-                  <span className="home__card-spot-of">/ {liveCapacity}</span>
-                </>
-              ) : (
-                <span
-                  className="demo-skel demo-skel--ink"
-                  style={{ width: 64, height: "1em" }}
-                  aria-hidden="true"
-                />
-              )}
-              <span className="home__card-spot-label">spots available</span>
+              <span className="home__card-rating-dot" aria-hidden="true">·</span>
+              <span className="home__card-rating-count">362 reviews</span>
             </div>
           </div>
           <GarageThumb />
         </div>
+
+        <div className="home__card-divider" aria-hidden="true" />
+
+        {/* Live availability — own row, gets to dominate. */}
+        <div className="home__card-live">
+          <div className="home__card-live-counts">
+            {ready ? (
+              <>
+                <span className="home__card-spot-count">{liveAvailable}</span>
+                <span className="home__card-spot-of">of {liveCapacity}</span>
+              </>
+            ) : (
+              <span
+                className="demo-skel demo-skel--ink"
+                style={{ width: 76, height: "1em" }}
+                aria-hidden="true"
+              />
+            )}
+          </div>
+          <span className="home__card-spot-label">spots available</span>
+        </div>
+
         <div className="home__card-address">
           {ready ? (
             garageAddress
@@ -144,6 +162,7 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
             />
           )}
         </div>
+
         <button
           type="button"
           className="home__card-cta"
@@ -158,8 +177,8 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
         <TabButton label="Map" active>
           <MapTabIcon />
         </TabButton>
-        <TabButton label="Bookings">
-          <BookingsIcon />
+        <TabButton label="Saved">
+          <SavedIcon />
         </TabButton>
         <TabButton label="Activity">
           <ActivityIcon />
@@ -198,10 +217,43 @@ function FakeMap() {
         {/* Land base */}
         <rect width="400" height="720" fill="url(#home-map-bg)" />
 
-        {/* Park / green areas */}
-        <rect x="34" y="146" width="86" height="68" rx="4" fill="#d9efe1" opacity="0.85" />
-        <rect x="252" y="498" width="100" height="80" rx="4" fill="#d9efe1" opacity="0.85" />
-        <rect x="60" y="540" width="48" height="40" rx="3" fill="#d9efe1" opacity="0.7" />
+        {/* Block tints — subtle alternating shades so the grid doesn't read
+            as a flat field. Slight color variation suggests denser city
+            districts vs lighter residential blocks. */}
+        <g opacity="0.55">
+          <rect x="0" y="0" width="78" height="98" fill="#e3e7ee" />
+          <rect x="78" y="0" width="122" height="98" fill="#dde2ec" />
+          <rect x="200" y="0" width="112" height="98" fill="#e6eaf2" />
+
+          <rect x="0" y="252" width="78" height="156" fill="#dfe4ed" />
+          <rect x="200" y="252" width="112" height="156" fill="#e3e7ee" />
+
+          <rect x="78" y="408" width="122" height="158" fill="#e1e6ee" />
+          <rect x="200" y="408" width="112" height="158" fill="#dee3ec" />
+
+          <rect x="0" y="566" width="78" height="154" fill="#e3e7ee" />
+          <rect x="78" y="566" width="122" height="154" fill="#dde2ec" />
+        </g>
+
+        {/* Park / green areas — varied sizes and shapes */}
+        <rect x="34" y="120" width="86" height="92" rx="4" fill="#d4ebde" opacity="0.92" />
+        <rect x="252" y="498" width="100" height="80" rx="4" fill="#d4ebde" opacity="0.9" />
+        <rect x="60" y="540" width="48" height="40" rx="3" fill="#d4ebde" opacity="0.78" />
+        <rect x="216" y="280" width="38" height="50" rx="3" fill="#d4ebde" opacity="0.75" />
+
+        {/* Tree cluster dots inside the largest park */}
+        <g fill="#a3d9b6" opacity="0.7">
+          <circle cx="56" cy="148" r="5" />
+          <circle cx="76" cy="160" r="4" />
+          <circle cx="96" cy="142" r="4" />
+          <circle cx="62" cy="178" r="4" />
+          <circle cx="92" cy="184" r="5" />
+          <circle cx="110" cy="170" r="4" />
+        </g>
+
+        {/* Plaza / civic block — light tan on a downtown corner */}
+        <rect x="218" y="118" width="60" height="58" rx="3" fill="#ece7da" opacity="0.7" />
+        <circle cx="248" cy="147" r="6" fill="#bfd6c7" opacity="0.85" />
 
         {/* Water on the right edge — wavy coastline */}
         <path
@@ -254,6 +306,36 @@ function FakeMap() {
           stroke="white"
           strokeWidth="13"
           strokeLinecap="butt"
+        />
+        {/* Center dash on Broadway — quiet "highway" cue */}
+        <path
+          d="M 56 720 L 360 80"
+          stroke="#dee3ec"
+          strokeWidth="0.7"
+          strokeDasharray="6 8"
+          fill="none"
+          opacity="0.85"
+        />
+        {/* Center dashes on the two horizontal majors closest to the user */}
+        <line
+          x1="0"
+          y1="252"
+          x2="360"
+          y2="252"
+          stroke="#dee3ec"
+          strokeWidth="0.7"
+          strokeDasharray="6 8"
+          opacity="0.85"
+        />
+        <line
+          x1="0"
+          y1="408"
+          x2="360"
+          y2="408"
+          stroke="#dee3ec"
+          strokeWidth="0.7"
+          strokeDasharray="6 8"
+          opacity="0.85"
         />
 
         {/* Subtle road outlines for depth */}
@@ -554,11 +636,15 @@ function MapTabIcon() {
   );
 }
 
-function BookingsIcon() {
+function SavedIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="4" y="5" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M4 10h16M9 3v4M15 3v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M6 4h12v17l-6-4-6 4z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

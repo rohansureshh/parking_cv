@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   DEMO_FALLBACK,
@@ -131,7 +131,7 @@ export function ParkedConfirmationScreen({
           <ArrowLeftIcon />
         </button>
         <div className="parked__brand" aria-hidden="true">
-          <span className="parked__brand-pin">P</span>
+          <BrandPin />
           <span className="parked__brand-name">
             <span className="swift">Swift</span>
             <span className="park">Park</span>
@@ -141,8 +141,16 @@ export function ParkedConfirmationScreen({
       </header>
 
       <main className="parked__main">
-        <div className="parked__check" aria-hidden="true">
-          <CheckBadge />
+        <div className="parked__check-wrap" aria-hidden="true">
+          {/* Confetti renders BEFORE the badge so the badge paints over
+              the burst's center. Combined with the keyframe's delayed
+              fade-in, pieces are only visible AFTER they've moved out
+              past the badge edge — feels like they emerged from behind
+              it rather than popping straight off its surface. */}
+          <ConfettiBurst />
+          <div className="parked__check">
+            <CheckBadge />
+          </div>
         </div>
 
         <h1 className="parked__title">You're Parked!</h1>
@@ -242,6 +250,111 @@ function formatTimer(secs: number): string {
   const m = Math.floor(secs / 60);
   const s = secs % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Confetti — subtle celebratory burst that fires once when the
+   Parked screen mounts. Fully CSS-driven; each piece's final offset
+   is precomputed in JS and handed to CSS via custom properties so
+   the keyframe stays purely declarative.
+   ───────────────────────────────────────────────────────────────── */
+
+interface ConfettiPiece {
+  dx: number;
+  dy: number;
+  rotation: number;
+  delay: number;
+  width: number;
+  height: number;
+  color: string;
+}
+
+const CONFETTI_COLORS: ReadonlyArray<string> = [
+  "#2563eb", // brand blue
+  "#3b82f6", // mid blue
+  "#60a5fa", // light blue
+  "#bfdbfe", // pale blue
+  "#f1f5f9", // pearl
+  "#fbbf24", // gold (sparing)
+  "#fda4a4", // soft coral (sparing)
+];
+
+function ConfettiBurst() {
+  // Precomputed pieces — generated once on mount so the burst is stable
+  // across re-renders and feels like one intentional explosion. The
+  // minimum travel distance is comfortably past the 96 px badge so all
+  // pieces become visible cleanly outside its silhouette.
+  const pieces = useMemo<ConfettiPiece[]>(() => {
+    const arr: ConfettiPiece[] = [];
+    const count = 22;
+    for (let i = 0; i < count; i++) {
+      // Slight upward bias for a "burst out" feel rather than a flat ring.
+      const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+      const distance = 95 + Math.random() * 70;
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance - 26; // upward bias
+      arr.push({
+        dx,
+        dy,
+        rotation: (Math.random() - 0.5) * 720,
+        delay: Math.random() * 140,
+        width: 4 + (i % 3) * 2,
+        height: 6 + (i % 3) * 3,
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length]!,
+      });
+    }
+    return arr;
+  }, []);
+
+  return (
+    <div className="parked__confetti" aria-hidden="true">
+      {pieces.map((p, i) => (
+        <span
+          key={i}
+          className="parked__confetti-piece"
+          style={
+            {
+              "--dx": `${p.dx}px`,
+              "--dy": `${p.dy}px`,
+              "--rot": `${p.rotation}deg`,
+              "--delay": `${p.delay}ms`,
+              width: `${p.width}px`,
+              height: `${p.height}px`,
+              backgroundColor: p.color,
+            } as React.CSSProperties
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+/* SwiftPark teardrop pin — matches splash + overview mini brand mark. */
+function BrandPin() {
+  return (
+    <svg
+      className="parked__brand-pin-svg"
+      viewBox="0 0 48 56"
+      aria-hidden="true"
+    >
+      <path
+        d="M 24 0 C 14 0 6 8 6 18 c 0 13.5 18 38 18 38 s 18 -24.5 18 -38 C 42 8 34 0 24 0 z"
+        fill="#2563eb"
+      />
+      <circle cx="24" cy="18" r="11" fill="white" />
+      <text
+        x="24"
+        y="22.6"
+        textAnchor="middle"
+        fontFamily="-apple-system, BlinkMacSystemFont, system-ui, sans-serif"
+        fontWeight="900"
+        fontSize="13.5"
+        fill="#2563eb"
+      >
+        P
+      </text>
+    </svg>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────

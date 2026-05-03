@@ -1175,6 +1175,40 @@ button:disabled {
   to   { width: 100%; }
 }
 
+/* Subtle bob on the splash car — gives the static illustration a sense
+   of "running engine" without becoming distracting. */
+.splash__car {
+  animation: splash-car-bob 2.4s ease-in-out infinite;
+}
+@keyframes splash-car-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-1.6px); }
+}
+
+/* Wheels rotate continuously. transform-box: fill-box rebinds the
+   transform reference frame to each wheel's bounding box, and
+   transform-origin: center pivots around the wheel center (each
+   wheel is centered at 0,0 in its own local coords thanks to the
+   parent <g transform="translate(...)">). */
+.splash__car-wheel {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: splash-wheel-spin 1.6s linear infinite;
+}
+@keyframes splash-wheel-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Road dashes scroll toward the viewer so the static car reads as
+   moving forward. Negative dashoffset moves the pattern along the
+   path's direction (top → bottom = far → near = toward viewer). */
+.splash__road-dashes {
+  animation: splash-road-flow 1.6s linear infinite;
+}
+@keyframes splash-road-flow {
+  to { stroke-dashoffset: -18; }
+}
+
 /* ──────────────────────────────────────────────────────────────
    Home / Map screen
    ────────────────────────────────────────────────────────────── */
@@ -1420,7 +1454,7 @@ button:disabled {
   bottom: 88px;
   background: white;
   border-radius: var(--radius-card);
-  padding: 16px 16px 14px;
+  padding: 18px 18px 16px;
   border: 1px solid var(--hairline);
   box-shadow: 0 -2px 16px -6px rgba(15, 23, 42, 0.10),
               0 18px 36px -14px rgba(15, 23, 42, 0.30),
@@ -1434,9 +1468,9 @@ button:disabled {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.home__card-row {
+.home__card-header {
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
   gap: 14px;
 }
 
@@ -1446,9 +1480,9 @@ button:disabled {
 }
 
 .home__card-title {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 800;
-  letter-spacing: -0.018em;
+  letter-spacing: -0.022em;
   color: var(--ink);
   line-height: 1.2;
   margin: 0;
@@ -1458,61 +1492,94 @@ button:disabled {
 }
 
 .home__card-meta {
-  margin-top: 4px;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12.5px;
   color: var(--muted);
   font-weight: 500;
+  letter-spacing: 0.005em;
+}
+.home__card-meta-dot {
+  color: var(--muted-2);
 }
 
 .home__card-rating {
-  margin-top: 7px;
-  display: inline-flex;
+  margin-top: 6px;
+  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: 12.5px;
   font-weight: 700;
   color: var(--ink-soft);
+  letter-spacing: 0.005em;
 }
-.home__card-rating svg { color: #f59e0b; }
+.home__card-rating svg { color: #f59e0b; flex-shrink: 0; }
 .home__card-rating-num { color: var(--ink); }
+.home__card-rating-dot {
+  color: var(--muted-2);
+  font-weight: 700;
+  margin: 0 1px;
+}
 .home__card-rating-count {
   color: var(--muted);
   font-weight: 500;
 }
 
-.home__card-spots {
-  margin-top: 8px;
+/* Hairline divider between place-meta block and live availability block.
+   Gives the rating a chance to breathe before the spot count claims focus. */
+.home__card-divider {
+  margin: 11px 0 11px;
+  height: 1px;
+  background: var(--hairline-2);
+}
+
+/* Live availability — the big "X of Y spots available" row gets its own
+   block with restful spacing instead of being crammed under the rating. */
+.home__card-live {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.home__card-live-counts {
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
-  font-size: 12.5px;
-  color: var(--ink-soft);
 }
+
 .home__card-spot-count {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 800;
   color: var(--brand);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.018em;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 .home__card-spot-of {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.005em;
 }
 .home__card-spot-label {
-  margin-left: 4px;
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--muted);
   font-weight: 600;
+  letter-spacing: 0.005em;
 }
 
 .home__card-thumb {
-  width: 88px;
-  height: 88px;
+  /* Sized to roughly match the natural height of the title + meta +
+     rating stack on the left so both columns end at the same vertical
+     position — eliminates the previous dead-space band. */
+  width: 76px;
+  height: 76px;
   flex-shrink: 0;
-  border-radius: 14px;
+  border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 6px 14px -8px rgba(15, 23, 42, 0.22);
 }
@@ -1523,8 +1590,8 @@ button:disabled {
 }
 
 .home__card-address {
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
   border-top: 1px solid var(--hairline-2);
   font-size: 12px;
   color: var(--muted);
@@ -1532,9 +1599,9 @@ button:disabled {
 }
 
 .home__card-cta {
-  margin-top: 12px;
+  margin-top: 14px;
   width: 100%;
-  height: 48px;
+  height: 50px;
   border-radius: 14px;
   background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
   color: white;
@@ -1728,19 +1795,11 @@ button:disabled {
 .overview__brand-pill .swift { color: var(--ink); }
 .overview__brand-pill .park { color: var(--brand); }
 
-.overview__brand-pin {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-  color: white;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 10px -4px rgba(37, 99, 235, 0.5);
+.overview__brand-pin-svg {
+  width: 16px;
+  height: 19px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 4px 8px rgba(37, 99, 235, 0.40));
 }
 
 .overview__hero-info {
@@ -2310,6 +2369,21 @@ button:disabled {
   to { stroke-dashoffset: -122; }
 }
 
+/* Secondary highlight — small punctuating dash, locked to the SAME
+   cycle length (122 px) and SAME 3 s duration as the primary, with a
+   −1.5 s animation-delay so it sits exactly half-cycle offset from the
+   primary band. The two layers therefore travel in lockstep at all
+   times instead of drifting in and out of phase. */
+.navigation__route-flow-secondary {
+  animation: nav-route-flow-secondary 3s linear infinite;
+  animation-delay: -1.5s;
+}
+
+@keyframes nav-route-flow-secondary {
+  /* One full dash + gap (6 + 116). */
+  to { stroke-dashoffset: -122; }
+}
+
 .navigation__here-pulse {
   /* Without `fill-box`, CSS transform: scale() on an SVG element resolves
      its origin against the SVG's viewBox (0, 0). The halo would then scale
@@ -2608,18 +2682,11 @@ button:disabled {
   user-select: none;
 }
 
-.parked__brand-pin {
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-  color: white;
-  font-size: 11px;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 10px -4px rgba(37, 99, 235, 0.5);
+.parked__brand-pin-svg {
+  width: 18px;
+  height: 21px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 4px 8px rgba(37, 99, 235, 0.40));
 }
 
 .parked__brand-name {
@@ -2646,15 +2713,95 @@ button:disabled {
   gap: 18px;
 }
 
-/* Check badge */
-.parked__check {
+/* Check badge wrapper — owns the layout slot and hosts the confetti
+   layer as a sibling to the badge so the badge's drop-shadow + scale-in
+   animation never apply to the confetti pieces. */
+.parked__check-wrap {
+  position: relative;
   width: 96px;
   height: 96px;
   margin-top: 6px;
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Check badge — visual only; no longer owns position/margin. */
+.parked__check {
+  width: 100%;
+  height: 100%;
   filter: drop-shadow(0 18px 32px rgba(37, 99, 235, 0.42))
           drop-shadow(0 6px 12px rgba(15, 23, 42, 0.10));
   animation: parked-check-in 600ms cubic-bezier(0.18, 1.4, 0.4, 1) 100ms both;
+}
+
+/* Confetti — absolutely positioned overlay centered on the check badge.
+   Pieces fly outward from the badge center; overflow is unclipped so they
+   reach the surrounding screen area. */
+.parked__confetti {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.parked__confetti-piece {
+  --dx: 0px;
+  --dy: 0px;
+  --rot: 0deg;
+  --delay: 0ms;
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 1.5px;
+  transform: translate(-50%, -50%) scale(0.6);
+  opacity: 0;
+  animation: parked-confetti 1700ms cubic-bezier(0.22, 0.8, 0.36, 1)
+    calc(var(--delay) + 460ms) forwards;
+}
+
+@keyframes parked-confetti {
+  /* 0 → ~24%: piece moves outward but stays invisible; the parent
+     stacking order means the badge covers the burst's center, so by the
+     time the piece fades in at 28% it's already past the badge edge. */
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(0deg) scale(0.6);
+  }
+  24% {
+    opacity: 0;
+    transform: translate(
+        calc(var(--dx) * 0.32 - 50%),
+        calc(var(--dy) * 0.32 - 50%)
+      )
+      rotate(calc(var(--rot) * 0.24))
+      scale(0.85);
+  }
+  38% {
+    opacity: 1;
+    transform: translate(
+        calc(var(--dx) * 0.55 - 50%),
+        calc(var(--dy) * 0.55 - 50%)
+      )
+      rotate(calc(var(--rot) * 0.42))
+      scale(1);
+  }
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(
+        calc(var(--dx) - 50%),
+        calc(var(--dy) - 50% + 22px)
+      )
+      rotate(var(--rot))
+      scale(0.85);
+  }
 }
 
 .parked__check-svg {

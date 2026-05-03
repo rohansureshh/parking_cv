@@ -100,7 +100,7 @@ export function GarageOverviewScreen({
             <ArrowLeftIcon />
           </button>
           <div className="overview__brand-pill" aria-hidden="true">
-            <span className="overview__brand-pin">P</span>
+            <BrandPin />
             <span className="overview__brand-name">
               <span className="swift">Swift</span>
               <span className="park">Park</span>
@@ -313,6 +313,36 @@ function LevelRow({ level, available, total }: LevelInfo) {
   );
 }
 
+/* SwiftPark teardrop pin — matches the splash brand mark exactly so
+   the mini brand pill in the header stays visually cohesive across
+   Splash, Overview, and Parked. */
+function BrandPin() {
+  return (
+    <svg
+      className="overview__brand-pin-svg"
+      viewBox="0 0 48 56"
+      aria-hidden="true"
+    >
+      <path
+        d="M 24 0 C 14 0 6 8 6 18 c 0 13.5 18 38 18 38 s 18 -24.5 18 -38 C 42 8 34 0 24 0 z"
+        fill="#2563eb"
+      />
+      <circle cx="24" cy="18" r="11" fill="white" />
+      <text
+        x="24"
+        y="22.6"
+        textAnchor="middle"
+        fontFamily="-apple-system, BlinkMacSystemFont, system-ui, sans-serif"
+        fontWeight="900"
+        fontSize="13.5"
+        fill="#2563eb"
+      >
+        P
+      </text>
+    </svg>
+  );
+}
+
 /* ─────────────────────────────────────────────────────────────────
    Hero illustration — stylized SwiftPark parking structure
    ───────────────────────────────────────────────────────────────── */
@@ -326,146 +356,208 @@ function GarageHeroIllustration() {
       aria-hidden="true"
     >
       <defs>
+        {/* Calmer sky — light cool gradient, mostly white with a subtle
+            tint. Heavy navy is gone; brand blue is now a small accent. */}
         <linearGradient id="ov-sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#1e40af" />
-          <stop offset="55%" stopColor="#3b82f6" />
-          <stop offset="100%" stopColor="#93c5fd" />
+          <stop offset="0%" stopColor="#dde4ee" />
+          <stop offset="55%" stopColor="#eef2f8" />
+          <stop offset="100%" stopColor="#f6f8fc" />
         </linearGradient>
         <linearGradient id="ov-building" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f8fafc" />
-          <stop offset="100%" stopColor="#cbd5e1" />
+          <stop offset="0%" stopColor="#fbfcfe" />
+          <stop offset="100%" stopColor="#c9d1de" />
+        </linearGradient>
+        <linearGradient id="ov-building-front" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.22)" />
+          <stop offset="50%" stopColor="rgba(255,255,255,0)" />
+          <stop offset="100%" stopColor="rgba(15,23,42,0.10)" />
         </linearGradient>
         <linearGradient id="ov-overlay" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="black" stopOpacity="0" />
-          <stop offset="55%" stopColor="black" stopOpacity="0.18" />
+          <stop offset="55%" stopColor="black" stopOpacity="0.20" />
           <stop offset="100%" stopColor="black" stopOpacity="0.62" />
         </linearGradient>
+        {/* Roof band — slate, not navy. Single small brand-blue stripe is
+            handled separately below the roof. */}
         <linearGradient id="ov-roof" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#1d4ed8" />
-          <stop offset="100%" stopColor="#1e3a8a" />
+          <stop offset="0%" stopColor="#64748b" />
+          <stop offset="100%" stopColor="#475569" />
         </linearGradient>
+        <linearGradient id="ov-entrance" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.6)" />
+          <stop offset="100%" stopColor="rgba(96,165,250,0.28)" />
+        </linearGradient>
+        <radialGradient id="ov-sun" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="white" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="white" stopOpacity="0" />
+        </radialGradient>
       </defs>
 
       <rect width="400" height="240" fill="url(#ov-sky)" />
 
-      {/* Sun glow */}
-      <circle cx="332" cy="38" r="32" fill="white" opacity="0.16" />
-      <circle cx="332" cy="38" r="20" fill="white" opacity="0.22" />
+      {/* Sun — quiet warm halo, not a chunky white disk. */}
+      <circle cx="332" cy="46" r="56" fill="url(#ov-sun)" />
 
-      {/* Clouds */}
+      {/* Wispy clouds — softer, lower contrast against the lighter sky. */}
+      <g fill="white" opacity="0.95">
+        <ellipse cx="78" cy="44" rx="26" ry="5.5" />
+        <ellipse cx="100" cy="40" rx="14" ry="4" />
+      </g>
       <g fill="white" opacity="0.7">
-        <ellipse cx="78" cy="44" rx="22" ry="6" />
-        <ellipse cx="98" cy="40" rx="14" ry="4.5" />
-        <ellipse cx="244" cy="68" rx="18" ry="5" />
-        <ellipse cx="258" cy="66" rx="11" ry="3.5" />
+        <ellipse cx="244" cy="70" rx="22" ry="4.5" />
+        <ellipse cx="262" cy="66" rx="12" ry="3.5" />
+        <ellipse cx="32" cy="86" rx="14" ry="3" />
       </g>
 
-      {/* Distant skyline */}
-      <g fill="#bfdbfe" opacity="0.6">
-        <rect x="14" y="124" width="22" height="40" />
-        <rect x="40" y="106" width="14" height="58" />
-        <rect x="58" y="118" width="20" height="46" />
-        <path d="M 82 164 L 82 102 L 96 90 L 96 164 Z" />
-        <rect x="320" y="118" width="20" height="46" />
-        <rect x="344" y="108" width="18" height="56" />
-        <path d="M 366 164 L 366 110 L 376 100 L 386 110 L 386 164 Z" />
+      {/* Far skyline — neutral cool gray instead of saturated light blue,
+          so the eye lands on the building rather than the backdrop. */}
+      <g fill="#cdd5e0" opacity="0.55">
+        <rect x="6" y="128" width="22" height="44" />
+        <rect x="32" y="118" width="14" height="54" />
+        <rect x="50" y="124" width="18" height="48" />
+        <rect x="72" y="112" width="22" height="60" />
+        <path d="M 100 172 L 100 100 L 108 90 L 116 100 L 116 172 Z" />
+        <rect x="120" y="126" width="14" height="46" />
+        <rect x="266" y="124" width="18" height="48" />
+        <rect x="290" y="118" width="20" height="54" />
+        <path d="M 314 172 L 314 108 L 322 100 L 330 108 L 330 172 Z" />
+        <rect x="340" y="124" width="20" height="48" />
+        <rect x="364" y="118" width="22" height="54" />
       </g>
 
-      {/* Trees */}
+      {/* Subtle warm horizon wash — softens where sky meets ground. */}
+      <rect
+        x="0"
+        y="160"
+        width="400"
+        height="22"
+        fill="url(#ov-sun)"
+        opacity="0.5"
+      />
+
+      {/* Trees — slightly desaturated so they recede behind the building. */}
       <g>
-        <ellipse cx="64" cy="186" rx="14" ry="12" fill="#86efac" opacity="0.85" />
-        <rect x="62.5" y="186" width="3" height="14" fill="#65a30d" />
-        <ellipse cx="346" cy="184" rx="13" ry="11" fill="#86efac" opacity="0.85" />
-        <rect x="344.5" y="184" width="3" height="14" fill="#65a30d" />
+        <ellipse cx="64" cy="186" rx="13" ry="11" fill="#a8d5b3" opacity="0.92" />
+        <ellipse cx="60" cy="194" rx="10" ry="8" fill="#a8d5b3" opacity="0.88" />
+        <rect x="62.5" y="186" width="3" height="16" fill="#7ba262" />
+        <ellipse cx="346" cy="184" rx="12" ry="10" fill="#a8d5b3" opacity="0.92" />
+        <ellipse cx="350" cy="192" rx="9" ry="7" fill="#a8d5b3" opacity="0.88" />
+        <rect x="344.5" y="184" width="3" height="16" fill="#7ba262" />
       </g>
 
       {/* Parking structure */}
       <g transform="translate(108, 78)">
-        {/* Roof band */}
+        {/* Roof band — slate gray, not heavy navy */}
         <rect x="-4" y="-6" width="192" height="10" rx="1.5" fill="url(#ov-roof)" />
+        <rect x="-4" y="-6" width="192" height="2" fill="white" opacity="0.30" />
+        {/* Brand-blue accent stripe just below the roof — small, on-brand */}
+        <rect x="-4" y="4" width="192" height="1.6" fill="#2563eb" opacity="0.85" />
+
         {/* Building shell */}
         <rect width="184" height="124" fill="url(#ov-building)" rx="2" />
+        {/* Front-facade lighting wash — left highlight, right shadow */}
+        <rect width="184" height="124" fill="url(#ov-building-front)" rx="2" />
 
+        {/* Each floor: a softer interior strip + cool car silhouettes.
+            Strips lighter than before so the building doesn't read as a
+            slab of black. */}
         {/* Floor 4 */}
-        <rect x="6" y="6" width="172" height="14" fill="#0f172a" opacity="0.55" />
-        <g fill="#bfdbfe">
-          <rect x="14" y="9" width="14" height="8" rx="1" />
-          <rect x="32" y="9" width="14" height="8" rx="1" />
-        </g>
-        <g fill="#fca5a5">
-          <rect x="62" y="9" width="14" height="8" rx="1" />
-        </g>
+        <rect x="6" y="6" width="172" height="14" fill="#1e293b" opacity="0.42" />
         <g fill="#cbd5e1">
-          <rect x="94" y="9" width="14" height="8" rx="1" />
-          <rect x="112" y="9" width="14" height="8" rx="1" />
-          <rect x="148" y="9" width="14" height="8" rx="1" />
+          <rect x="14" y="9" width="14" height="8" rx="1.5" />
+          <rect x="34" y="9" width="14" height="8" rx="1.5" />
+          <rect x="74" y="9" width="14" height="8" rx="1.5" />
+        </g>
+        <g fill="#93c5fd">
+          <rect x="54" y="9" width="14" height="8" rx="1.5" />
+          <rect x="114" y="9" width="14" height="8" rx="1.5" />
+        </g>
+        <g fill="#475569">
+          <rect x="94" y="9" width="14" height="8" rx="1.5" />
+          <rect x="148" y="9" width="14" height="8" rx="1.5" />
         </g>
         <rect x="0" y="22" width="184" height="2.5" fill="#94a3b8" />
+        <rect x="0" y="22" width="184" height="0.6" fill="white" opacity="0.4" />
 
         {/* Floor 3 */}
-        <rect x="6" y="29" width="172" height="14" fill="#0f172a" opacity="0.55" />
+        <rect x="6" y="29" width="172" height="14" fill="#1e293b" opacity="0.42" />
         <g fill="#cbd5e1">
-          <rect x="18" y="32" width="14" height="8" rx="1" />
+          <rect x="18" y="32" width="14" height="8" rx="1.5" />
+          <rect x="84" y="32" width="14" height="8" rx="1.5" />
         </g>
-        <g fill="#bfdbfe">
-          <rect x="50" y="32" width="14" height="8" rx="1" />
-          <rect x="84" y="32" width="14" height="8" rx="1" />
+        <g fill="#93c5fd">
+          <rect x="50" y="32" width="14" height="8" rx="1.5" />
+          <rect x="118" y="32" width="14" height="8" rx="1.5" />
         </g>
-        <g fill="#cbd5e1">
-          <rect x="118" y="32" width="14" height="8" rx="1" />
-          <rect x="148" y="32" width="14" height="8" rx="1" />
+        <g fill="#475569">
+          <rect x="148" y="32" width="14" height="8" rx="1.5" />
         </g>
         <rect x="0" y="45" width="184" height="2.5" fill="#94a3b8" />
+        <rect x="0" y="45" width="184" height="0.6" fill="white" opacity="0.4" />
 
         {/* Floor 2 */}
-        <rect x="6" y="52" width="172" height="14" fill="#0f172a" opacity="0.55" />
-        <g fill="#bfdbfe">
-          <rect x="14" y="55" width="14" height="8" rx="1" />
-          <rect x="44" y="55" width="14" height="8" rx="1" />
+        <rect x="6" y="52" width="172" height="14" fill="#1e293b" opacity="0.42" />
+        <g fill="#93c5fd">
+          <rect x="14" y="55" width="14" height="8" rx="1.5" />
+          <rect x="78" y="55" width="14" height="8" rx="1.5" />
         </g>
         <g fill="#cbd5e1">
-          <rect x="78" y="55" width="14" height="8" rx="1" />
-          <rect x="116" y="55" width="14" height="8" rx="1" />
-          <rect x="148" y="55" width="14" height="8" rx="1" />
+          <rect x="44" y="55" width="14" height="8" rx="1.5" />
+          <rect x="116" y="55" width="14" height="8" rx="1.5" />
+          <rect x="148" y="55" width="14" height="8" rx="1.5" />
         </g>
         <rect x="0" y="68" width="184" height="2.5" fill="#94a3b8" />
+        <rect x="0" y="68" width="184" height="0.6" fill="white" opacity="0.4" />
 
-        {/* Ground floor with entrance + P sign glow */}
-        <rect x="6" y="75" width="172" height="44" fill="#0f172a" opacity="0.5" />
-        {/* Entrance opening */}
-        <rect x="68" y="92" width="48" height="27" rx="2" fill="#fbbf24" />
-        <rect x="68" y="92" width="48" height="27" rx="2" fill="white" opacity="0.35" />
-        {/* P sign over entrance */}
-        <circle cx="92" cy="86" r="8" fill="white" />
-        <circle cx="92" cy="86" r="6" fill="#2563eb" />
+        {/* Ground floor — soft cool entrance glow */}
+        <rect x="6" y="75" width="172" height="44" fill="#1e293b" opacity="0.40" />
+        <rect
+          x="68"
+          y="90"
+          width="48"
+          height="29"
+          rx="3"
+          fill="url(#ov-entrance)"
+        />
+        <rect x="68" y="90" width="48" height="2.4" fill="white" opacity="0.6" />
+
+        {/* Smaller, subtler "SWIFTPARK" sign band over entrance — uses
+            brand blue but at a contained size so it accents rather than
+            dominates. */}
+        <rect x="62" y="78" width="60" height="8" rx="1.5" fill="#2563eb" />
         <text
           x="92"
-          y="89.6"
+          y="83.6"
           textAnchor="middle"
-          fontSize="8"
+          fontSize="5.5"
           fontWeight="900"
+          letterSpacing="0.18em"
           fill="white"
           fontFamily="-apple-system, BlinkMacSystemFont, system-ui, sans-serif"
         >
-          P
+          SWIFTPARK
         </text>
-        {/* Side columns (vertical white edges) */}
-        <rect x="0" y="0" width="2" height="124" fill="white" opacity="0.55" />
-        <rect x="182" y="0" width="2" height="124" fill="white" opacity="0.55" />
+
+        {/* Side columns with subtle inner highlight */}
+        <rect x="0" y="0" width="2" height="124" fill="white" opacity="0.6" />
+        <rect x="182" y="0" width="2" height="124" fill="white" opacity="0.6" />
+        <rect x="2" y="0" width="0.8" height="124" fill="white" opacity="0.20" />
+        <rect x="181.2" y="0" width="0.8" height="124" fill="white" opacity="0.20" />
       </g>
 
-      {/* Big SwiftPark P pin perched on the building's roof */}
-      <g transform="translate(200, 56)">
+      {/* SwiftPark teardrop pin perched on the roof — primary brand-blue
+          accent of the whole hero. */}
+      <g transform="translate(200, 50)">
         <path
-          d="M 0 0 C -10 0 -18 8 -18 18 c 0 13 18 30 18 30 s 18 -17 18 -30 C 18 8 10 0 0 0 Z"
+          d="M 0 0 C -11 0 -20 9 -20 20 c 0 14.5 20 34 20 34 s 20 -19.5 20 -34 C 20 9 11 0 0 0 Z"
           fill="#2563eb"
         />
-        <circle cx="0" cy="18" r="9" fill="white" />
+        <circle cx="0" cy="20" r="10" fill="white" />
         <text
           x="0"
-          y="22"
+          y="24.4"
           textAnchor="middle"
-          fontSize="11"
+          fontSize="13"
           fontWeight="900"
           fill="#2563eb"
           fontFamily="-apple-system, BlinkMacSystemFont, system-ui, sans-serif"
@@ -474,9 +566,10 @@ function GarageHeroIllustration() {
         </text>
       </g>
 
-      {/* Ground line */}
-      <rect x="0" y="200" width="400" height="40" fill="#475569" opacity="0.18" />
-      <rect x="0" y="202" width="400" height="2" fill="#334155" opacity="0.25" />
+      {/* Ground line + soft cast shadow under the structure */}
+      <ellipse cx="200" cy="206" rx="120" ry="4" fill="#0f172a" opacity="0.16" />
+      <rect x="0" y="200" width="400" height="40" fill="#475569" opacity="0.14" />
+      <rect x="0" y="202" width="400" height="2" fill="#334155" opacity="0.20" />
 
       {/* Dark gradient overlay for text readability */}
       <rect width="400" height="240" fill="url(#ov-overlay)" />

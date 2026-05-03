@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { SplashScreen } from "./screens/SplashScreen";
 import { HomeScreen } from "./screens/HomeScreen";
@@ -7,7 +7,10 @@ import { NavigationScreen } from "./screens/NavigationScreen";
 import { ParkedConfirmationScreen } from "./screens/ParkedConfirmationScreen";
 import { SpotVisualizationScreen } from "./screens/SpotVisualizationScreen";
 import { INITIAL_SCREEN, type Screen } from "./lib/navigation";
-import type { SelectedSpot } from "./lib/occupancyCache";
+import {
+  prefetchOccupancy,
+  type SelectedSpot,
+} from "./lib/occupancyCache";
 import type { Spot } from "./lib/types";
 
 /**
@@ -32,6 +35,12 @@ import type { Spot } from "./lib/types";
 function App() {
   const [screen, setScreen] = useState<Screen>(INITIAL_SCREEN);
   const [selectedSpot, setSelectedSpot] = useState<SelectedSpot | null>(null);
+
+  // Warm the shared occupancy cache during splash so the first real screen
+  // renders with data on its first paint instead of flashing skeletons.
+  useEffect(() => {
+    prefetchOccupancy();
+  }, []);
 
   const goHome = useCallback(() => {
     setSelectedSpot(null);
