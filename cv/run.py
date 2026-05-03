@@ -21,10 +21,10 @@ def parse_args():
     parser.add_argument("--video",    required=True,          help="Path to input video file")
     parser.add_argument("--capacity", type=int, default=100,  help="Total parking spots in the lot")
     parser.add_argument("--model",    default="yolov8n.pt",   help="YOLO model weights file")
-    parser.add_argument("--conf",     type=float, default=0.4,help="Detection confidence threshold")
+    parser.add_argument("--conf",     type=float, default=0.14,help="Detection confidence threshold")
     parser.add_argument("--spots",    default=None,           help="Path to spots JSON file (pro tier)")
     parser.add_argument("--save",     default=None,           help="Save annotated output to this path")
-    parser.add_argument("--skip",     type=int, default=2,    help="Process every Nth frame (1 = all frames)")
+    parser.add_argument("--skip",     type=int, default=6,    help="Process every Nth frame (1 = all frames)")
     return parser.parse_args()
 
 

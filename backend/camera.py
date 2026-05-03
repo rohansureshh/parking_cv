@@ -39,9 +39,9 @@ class CameraWorker:
         source: str,            # Vid file
         capacity: int = 100,
         model_path: str = "yolov8n.pt",
-        confidence: float = 0.25,
+        confidence: float = 0.14,
         spots_config: Optional[list] = None,
-        frame_skip: int = 2,    # Process every Nth frame
+        frame_skip: int = 6,    # Process every Nth frame
         loop_video: bool = True, # TODO Remove this in prod, loop video for testing
     ):
         self.source = source
