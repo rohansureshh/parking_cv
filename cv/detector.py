@@ -56,7 +56,7 @@ class ParkingDetector:
         self,
         model_path: str = "yolov8n.pt",   # nano = fastest and most accurate
         capacity: int = 100,               # Total number of spots in the lot
-        confidence_threshold: float = 0.25,
+        confidence_threshold: float = 0.14,
         smoothing_window: int = 30,         # Frames to average for count smoothing
         iou_threshold: float = 0.15,        # Overlap needed to mark a spot occupied
     ):
@@ -94,9 +94,17 @@ class ParkingDetector:
     # Core inference
     # ------------------------------------------------------------------
 
+    def _preprocess_frame(self, frame):
+        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        l = clahe.apply(l)
+        return cv2.cvtColor(cv2.merge([l, a, b]), cv2.COLOR_LAB2BGR)
+
     def process_frame(self, frame: np.ndarray) -> DetectionResult:
         """Run inference on a single frame and return detection results."""
-        results = self.model(frame, verbose=False)[0]
+        frame = self._preprocess_frame(frame)
+        results = self.model(frame, verbose=False, imgsz=1280)[0]
 
         # Filter to vehicle classes above confidence threshold
         car_boxes = []
@@ -114,7 +122,7 @@ class ParkingDetector:
         # Occupancy percentage
         occupancy_pct = min(smoothed / self.capacity, 1.0) if self.capacity > 0 else 0.0
 
-        # Pro tier: check each defined spot
+        car_boxes = self._split_merged_boxes(car_boxes)
         if self.spots:
             self._update_spot_occupancy(car_boxes)
 
@@ -133,19 +141,35 @@ class ParkingDetector:
     # Spot occupancy check via IoU
     # ------------------------------------------------------------------
 
-    def _update_spot_occupancy(self, car_boxes: list[tuple]):
-        """Check each spot against detected car bounding boxes."""
+    # helper function for the case that two boxes get merged
+    def _split_merged_boxes(self, car_boxes: list[tuple], width_ratio: float = 1.8) -> list[tuple]:
+        """
+        Splits bounding boxes that are suspiciously wide into two equal halves.
+        These are likely two cars that YOLO merged into one detection.
+        """
+        result = []
+        for (x1, y1, x2, y2) in car_boxes:
+            w = x2 - x1
+            h = y2 - y1
+            if h > 0 and (w / h) > width_ratio:
+                mid = (x1 + x2) // 2
+                result.append((x1, y1, mid, y2))  # left half
+                result.append((mid, y1, x2, y2))  # right half
+            else:
+                result.append((x1, y1, x2, y2))
+        return result
+
+    # Instead of IoU, use center point containment
+    def _update_spot_occupancy(self, car_boxes):
         for spot in self.spots:
             spot.is_occupied = False
-            spot_rect = cv2.boundingRect(spot.polygon)  # (x, y, w, h)
-            sx, sy, sw, sh = spot_rect
-
-            for (cx1, cy1, cx2, cy2) in car_boxes:
-                iou = self._compute_iou(
-                    (sx, sy, sx + sw, sy + sh),
-                    (cx1, cy1, cx2, cy2)
+            for (x1, y1, x2, y2) in car_boxes:
+                center_x = (x1 + x2) // 2
+                center_y = int(y1 + (y2 - y1) * 0.85)
+                result = cv2.pointPolygonTest(
+                    spot.polygon, (float(center_x), float(center_y)), False
                 )
-                if iou >= self.iou_threshold:
+                if result >= 0:
                     spot.is_occupied = True
                     break
 
