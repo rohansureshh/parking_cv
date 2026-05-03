@@ -26,7 +26,7 @@ sys.path.append(os.path.normpath(cv_path))
 
 
 from detector import ParkingDetector
-from models import OccupancySnapshot, SpotStatus, compute_status
+from models import OccupancySnapshot, SpotStatus, compute_facility_status
 
 
 class CameraWorker:
@@ -39,9 +39,9 @@ class CameraWorker:
         source: str,            # Vid file
         capacity: int = 100,
         model_path: str = "yolov8n.pt",
-        confidence: float = 0.25,
+        confidence: float = 0.14,
         spots_config: Optional[list] = None,
-        frame_skip: int = 2,    # Process every Nth frame
+        frame_skip: int = 6,    # Process every Nth frame
         loop_video: bool = True, # TODO Remove this in prod, loop video for testing
     ):
         self.source = source
@@ -130,16 +130,30 @@ class CameraWorker:
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     self._running = False
 
+
+                # status=compute_facility_status(result.occupancy_pct),
+
                 # Build snapshot
                 snapshot = OccupancySnapshot(
+                    lot_id="lot_1",
+                    lot_slug="lot-1",
+                    lot_name="Demo Parking Lot",
+                    location="123 Main St",
+                    facility_status=compute_facility_status(result.occupancy_pct),
                     timestamp=datetime.now(timezone.utc),
                     capacity=self.capacity,
-                    vehicles_detected=result.smoothed_count,
-                    available_spots=max(self.capacity - result.smoothed_count, 0),
+                    available=max(self.capacity - result.smoothed_count, 0),
+                    occupied=result.smoothed_count,
+                    unknown=0,
                     occupancy_pct=round(result.occupancy_pct, 3),
-                    status=compute_status(result.occupancy_pct),
                     spots=[
-                        SpotStatus(spot_id=s.spot_id, is_occupied=s.is_occupied)
+                        SpotStatus(
+                            id=s.spot_id,
+                            label=s.spot_id,
+                            level="1",
+                            status="occupied" if s.is_occupied else "available",
+                            confidence=1.0,
+                        )
                         for s in result.spots
                     ],
                 )
