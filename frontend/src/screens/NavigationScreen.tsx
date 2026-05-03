@@ -5,6 +5,7 @@ import {
   type SelectedSpot,
   useOccupancy,
 } from "../lib/occupancyCache";
+import { OSU_FACILITY_SLUG } from "../lib/facilities";
 
 interface NavigationScreenProps {
   onBack: () => void;
@@ -46,7 +47,7 @@ export function NavigationScreen({
   onParked,
   preselectedSpot,
 }: NavigationScreenProps) {
-  const { occupancy, ready } = useOccupancy();
+  const { occupancy, ready } = useOccupancy(OSU_FACILITY_SLUG);
 
   const garageName = occupancy?.lot_name ?? FALLBACK.garageName;
 

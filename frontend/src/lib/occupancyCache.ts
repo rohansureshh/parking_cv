@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 
 import { fetchOccupancy } from "./api";
+import { OSU_FACILITY_SLUG, type FacilitySlug } from "./facilities";
 import type { Occupancy } from "./types";
 
 /**
- * Shared demo fallback used when /demo/occupancy is unreachable. Every
- * customer-facing screen should source garage copy from here so the demo
+ * Shared demo fallback used when the OSU demo API is unreachable. Every
+ * customer-facing OSU screen should source garage copy from here so the demo
  * never shows conflicting placeholder names.
  */
 export const DEMO_FALLBACK = {
@@ -14,92 +15,90 @@ export const DEMO_FALLBACK = {
 } as const;
 
 /**
- * Minimal shape of a spot threaded through the navigation flow when the
- * user explicitly chose one in Spot Visualization. NavigationScreen and
- * ParkedConfirmationScreen both accept this as their `preselectedSpot`
- * prop, and App.tsx holds it in state across the SpotViz → Nav → Parked
- * handoff.
+ * Minimal shape of a spot threaded through the navigation flow when the user
+ * explicitly chose one in Spot Visualization.
  */
 export interface SelectedSpot {
   label: string;
   level: string;
 }
 
-/**
- * Module-level cache of the most recent successful occupancy fetch. Every
- * screen using `useOccupancy` shares this cache, so flowing
- * Splash → Home → Overview → Navigation only triggers a single fetch and
- * subsequent screens never flash a loading state.
- */
-let cached: Occupancy | null = null;
+const cachedByFacility = new Map<FacilitySlug, Occupancy>();
+const inFlightByFacility = new Map<FacilitySlug, Promise<Occupancy>>();
 
-/**
- * Single in-flight fetch promise — concurrent callers (e.g. App's prefetch
- * during splash + Home's `useOccupancy` mount) share the same network call
- * instead of racing two requests.
- */
-let inFlight: Promise<Occupancy> | null = null;
-
-function ensureFetched(): Promise<Occupancy> {
+function ensureFetched(facilitySlug: FacilitySlug): Promise<Occupancy> {
+  const cached = cachedByFacility.get(facilitySlug);
   if (cached) return Promise.resolve(cached);
+
+  const inFlight = inFlightByFacility.get(facilitySlug);
   if (inFlight) return inFlight;
-  inFlight = fetchOccupancy()
+
+  const request = fetchOccupancy(facilitySlug)
     .then((data) => {
-      cached = data;
-      inFlight = null;
+      cachedByFacility.set(facilitySlug, data);
+      inFlightByFacility.delete(facilitySlug);
       return data;
     })
     .catch((err) => {
-      inFlight = null;
+      inFlightByFacility.delete(facilitySlug);
       throw err;
     });
-  return inFlight;
+
+  inFlightByFacility.set(facilitySlug, request);
+  return request;
 }
 
 /**
- * Kick off a background fetch as early as possible (App mount). Resolves
- * silently — callers that need the data should still go through
- * `useOccupancy`. The point is to warm the cache during splash so the
- * first real screen renders with data on its first paint.
+ * Warm the cache for a facility as early as possible. Existing OSU screens
+ * keep the previous behavior by using the OSU slug as the default.
  */
-export function prefetchOccupancy(): void {
-  ensureFetched().catch(() => {
-    /* silent — useOccupancy callers handle the failure surface */
+export function prefetchOccupancy(
+  facilitySlug: FacilitySlug = OSU_FACILITY_SLUG,
+): void {
+  ensureFetched(facilitySlug).catch(() => {
+    /* silent - useOccupancy callers handle the failure surface */
   });
 }
 
 /**
- * Manually update the shared cache. Used by SpotVisualization (which
- * keeps its own state for the simulation/refresh UI) so a successful
- * `simulate-detection` propagates to subsequent screens.
+ * Manually update one facility's cached occupancy without touching any other
+ * facility. Used after OSU simulate-detection and future Brighton refreshes.
  */
-export function setCachedOccupancy(data: Occupancy): void {
-  cached = data;
+export function setCachedOccupancy(
+  facilitySlug: FacilitySlug,
+  data: Occupancy,
+): void {
+  cachedByFacility.set(facilitySlug, data);
 }
 
 export interface OccupancySnapshot {
   occupancy: Occupancy | null;
   /**
-   * `true` once the API has resolved at least once (success OR failure)
-   * for this session. `false` only during the initial loading window
-   * when there is no cache and no resolved fetch yet — the only window
-   * in which a screen should render skeletons instead of fallback text.
+   * true once the API has resolved at least once for this facility. false only
+   * during the initial loading window when there is no cache yet.
    */
   ready: boolean;
 }
 
 /**
- * React hook exposing the shared occupancy snapshot. The state is seeded
- * from the module cache so re-mounts within the same session are instant.
- * Multiple concurrent mounts share a single network call via `ensureFetched`.
+ * React hook exposing the shared occupancy snapshot for a single facility.
+ * OSU remains the default so current screens keep working while Phase 5 adds
+ * Brighton-specific screens later.
  */
-export function useOccupancy(): OccupancySnapshot {
-  const [occupancy, setOccupancy] = useState<Occupancy | null>(cached);
+export function useOccupancy(
+  facilitySlug: FacilitySlug = OSU_FACILITY_SLUG,
+): OccupancySnapshot {
+  const [occupancy, setOccupancy] = useState<Occupancy | null>(
+    cachedByFacility.get(facilitySlug) ?? null,
+  );
   const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    ensureFetched()
+    setOccupancy(cachedByFacility.get(facilitySlug) ?? null);
+    setLoadFailed(false);
+
+    ensureFetched(facilitySlug)
       .then((data) => {
         if (!cancelled) {
           setOccupancy(data);
@@ -107,14 +106,15 @@ export function useOccupancy(): OccupancySnapshot {
         }
       })
       .catch(() => {
-        // Only flip into the fallback path if we have no cache. With
-        // a cached value we keep showing the previously known garage.
-        if (!cancelled && cached === null) setLoadFailed(true);
+        if (!cancelled && !cachedByFacility.has(facilitySlug)) {
+          setLoadFailed(true);
+        }
       });
+
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [facilitySlug]);
 
   return {
     occupancy,

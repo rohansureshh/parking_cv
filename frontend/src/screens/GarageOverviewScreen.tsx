@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { DEMO_FALLBACK, useOccupancy } from "../lib/occupancyCache";
+import { OSU_FACILITY_SLUG } from "../lib/facilities";
 import type { FacilityStatus } from "../lib/types";
 
 interface GarageOverviewScreenProps {
@@ -60,7 +61,7 @@ export function GarageOverviewScreen({
   onViewSpotMap,
   onNavigate,
 }: GarageOverviewScreenProps) {
-  const { occupancy, ready } = useOccupancy();
+  const { occupancy, ready } = useOccupancy(OSU_FACILITY_SLUG);
   const [favorited, setFavorited] = useState(false);
 
   const garageName = occupancy?.lot_name ?? FALLBACK.name;

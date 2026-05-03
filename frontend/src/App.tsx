@@ -11,6 +11,7 @@ import {
   prefetchOccupancy,
   type SelectedSpot,
 } from "./lib/occupancyCache";
+import { OSU_FACILITY_SLUG } from "./lib/facilities";
 import type { Spot } from "./lib/types";
 
 /**
@@ -39,7 +40,7 @@ function App() {
   // Warm the shared occupancy cache during splash so the first real screen
   // renders with data on its first paint instead of flashing skeletons.
   useEffect(() => {
-    prefetchOccupancy();
+    prefetchOccupancy(OSU_FACILITY_SLUG);
   }, []);
 
   const goHome = useCallback(() => {

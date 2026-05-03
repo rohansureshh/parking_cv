@@ -1,4 +1,5 @@
 import { DEMO_FALLBACK, useOccupancy } from "../lib/occupancyCache";
+import { OSU_FACILITY_SLUG } from "../lib/facilities";
 
 interface HomeScreenProps {
   onSelectGarage: () => void;
@@ -32,7 +33,7 @@ interface MockMarker {
  * looks complete.
  */
 export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
-  const { occupancy, ready } = useOccupancy();
+  const { occupancy, ready } = useOccupancy(OSU_FACILITY_SLUG);
 
   const liveAvailable = occupancy?.available ?? 42;
   const liveCapacity = occupancy?.capacity ?? 120;

@@ -5,6 +5,7 @@ import {
   type SelectedSpot,
   useOccupancy,
 } from "../lib/occupancyCache";
+import { OSU_FACILITY_SLUG } from "../lib/facilities";
 
 interface ParkedConfirmationScreenProps {
   onBackToMap: () => void;
@@ -46,7 +47,7 @@ export function ParkedConfirmationScreen({
   onBackToMap,
   preselectedSpot,
 }: ParkedConfirmationScreenProps) {
-  const { occupancy } = useOccupancy();
+  const { occupancy } = useOccupancy(OSU_FACILITY_SLUG);
   const [frozen, setFrozen] = useState<FrozenState | null>(null);
 
   useEffect(() => {
