@@ -1,98 +1,67 @@
-# SwiftPark Claude Instructions
+## Phase 5: Brighton Ski Resort + YOLO Integration
 
-## Current branch
+We are starting Phase 5.
 
-We are working on `phase-4-claude-redesign`.
+The completed Phase 4 OSU flow should be preserved:
+Splash → Home → Garage Overview → Spot Visualization / Navigation → Parked Confirmation
 
-We are restarting Phase 4 from the current main branch.
+New facility:
+Brighton Ski Resort
 
-The previous Codex Phase 4A implementation was rejected visually. It created a rough app flow, but the UI quality was poor and did not match the original SwiftPark mockup closely enough.
+Brighton is different from OSU:
+- OSU = parking garage with levels
+- Brighton = surface parking lot with zones
+- Brighton has 3 zones
+- Zone 1 uses YOLO/video-derived occupancy data
+- Zones 2 and 3 use mock data for now
 
-Do not use the Codex Phase 4A screens as the visual standard.
+Important:
+- Preserve the OSU flow.
+- Preserve ParkingGarage3D for OSU.
+- Do not try to make ParkingGarage3D support Brighton unless explicitly asked.
+- Brighton should eventually have a separate surface-lot/zone visualization.
+- Use the current Occupancy/Spot shape as the normalized frontend contract.
 
-## Current good baseline
+Backend context:
+- OSU demo data comes from `/demo/occupancy`.
+- YOLO/camera data comes from `/status`.
+- WebSocket `/ws` exists but should not be used first.
+- Use REST first.
+- The YOLO data should be normalized into the same frontend Occupancy shape.
 
-The current main branch has the approved Phase 3C hero screen:
+Phase 5 implementation principle:
+Start with the data layer, not the visual layer.
 
-- polished Spot Visualization screen
-- SwiftPark branding
-- 3D parking garage hero visualization
-- external GLB car models
-- floor selector
-- selected spot flow
-- Run Detection Simulation button
-- FastAPI-only frontend integration
-
-Preserve this existing Phase 3C Spot Visualization screen.
-
-## Product flow we want
-
-The target app flow is:
-
-Splash → Home / map-style screen → Garage Overview → Spot Visualization → Navigation → Parked Confirmation
-
-Build this flow one polished screen at a time.
-
-## Visual direction
-
-Use the original SwiftPark multi-screen mockup as the primary design reference.
-
-The app should feel:
-- polished
-- iPhone-style
-- blue-and-white
-- clean and premium
-- investor/demo-ready
-- close to the original SwiftPark mockup
-
-Branding:
-- SwiftPark wordmark
-- “Swift” in dark text
-- “Park” in blue
-- tagline: “Stress less. Park better.”
-- blue parking pin / P icon style
-
-## Important constraints
+Recommended sequence:
+1. Facility metadata
+2. Facility-aware API functions
+3. Facility-aware occupancy cache
+4. Brighton normalizer: Zone 1 YOLO + Zone 2/3 mock
+5. Home screen shows both OSU and Brighton
+6. Garage Overview supports Level vs Zone labels
+7. Brighton surface-lot visualization
+8. Optional WebSocket live updates later
 
 Do not modify:
 - detector.py
 - run.py
 - calibrate.py
-- backend Python
-- Supabase logic
-- .env
+- ParkingGarage3D
+- carModelLoader
+- backend camera loop
+- Supabase secrets
+- `.env`
 
 Do not add:
-- real maps
 - real GPS
+- real maps
 - auth
 - payments
 - cloud deployment
-- @base44/sdk
+- Base44 SDK
 
-Do not expose Supabase keys in the frontend.
-
-Frontend should call FastAPI only.
-
-Backend local URL:
-http://127.0.0.1:8000
-
-Current backend endpoints:
-- GET /health
-- POST /demo/seed
-- GET /demo/occupancy
-- POST /demo/simulate-detection
-
-## Build approach
-
-Build one screen at a time.
-
-Do not build the full Phase 4 flow in one giant pass.
-
-Start with:
-1. Splash screen
-2. Home screen
-3. Garage Overview screen
-4. Navigation screen
-5. Parked Confirmation screen
-6. Final flow wiring and polish
+When planning, explicitly mention:
+- how OSU behavior stays unchanged
+- how Brighton Zone 1 YOLO data is normalized
+- how Zones 2 and 3 mock data are merged
+- how Level vs Zone display labels are handled
