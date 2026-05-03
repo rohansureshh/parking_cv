@@ -2,16 +2,6 @@
 
 ## Setup
 
-```bash
-pip install -r requirements.txt
-```
-
-YOLOv8 weights (`yolov8n.pt`) will download automatically on first run (~6MB).
-
----
-
-## Run the Demo Backend on Windows
-
 ### 1. Install dependencies
 
 From this repo folder in PowerShell:
@@ -145,10 +135,11 @@ randomly updating spot statuses in Supabase.
 ### Lite tier - just count cars and get occupancy %
 
 ```bash
-python run.py --video your_parking_lot.mp4 --capacity 50
+python run.py --video ../assets/test2.mp4 --capacity 50
 ```
 
 This shows a live window with bounding boxes around detected cars and a HUD showing:
+
 - Vehicles detected
 - Available spots
 - Occupancy %
@@ -156,15 +147,17 @@ This shows a live window with bounding boxes around detected cars and a HUD show
 ### Pro tier - spot-level detection
 
 First, run the calibration tool on your video to define each spot:
+
 ```bash
-python calibrate.py --video your_parking_lot.mp4 --output spots.json
+python calibrate.py --video ../assets/test2.mp4 --output ../assets/spots.json
 ```
 
 Draw a polygon around each empty parking spot (left click to add points, Enter to save a spot).
 
 Then run with the spots file:
+
 ```bash
-python run.py --video your_parking_lot.mp4 --capacity 50 --spots spots.json
+python run.py --video ../assets/test2.mp4 --capacity 50 --spots ../assets/spots.json
 ```
 
 Each spot will show green (open) or red (occupied).
@@ -173,15 +166,15 @@ Each spot will show green (open) or red (occupied).
 
 ## Options
 
-| Flag         | Default       | Description                              |
-|--------------|---------------|------------------------------------------|
-| `--video`    | required      | Path to input video                      |
-| `--capacity` | 100           | Total number of spots in the lot         |
-| `--model`    | yolov8n.pt    | YOLO model (n=fast, s=balanced, m=accurate) |
-| `--conf`     | 0.4           | Confidence threshold (0.0 - 1.0)         |
-| `--spots`    | None          | Path to spots.json for pro tier          |
-| `--save`     | None          | Save annotated video to this path        |
-| `--skip`     | 2             | Process every Nth frame (higher = faster)|
+| Flag         | Default    | Description                                 |
+| ------------ | ---------- | ------------------------------------------- |
+| `--video`    | required   | Path to input video                         |
+| `--capacity` | 100        | Total number of spots in the lot            |
+| `--model`    | yolov8n.pt | YOLO model (n=fast, s=balanced, m=accurate) |
+| `--conf`     | 0.4        | Confidence threshold (0.0 - 1.0)            |
+| `--spots`    | None       | Path to spots.json for pro tier             |
+| `--save`     | None       | Save annotated video to this path           |
+| `--skip`     | 2          | Process every Nth frame (higher = faster)   |
 
 ---
 
@@ -201,6 +194,7 @@ parking_cv/
 ## Next Steps
 
 Once this pipeline is working, the next layer is:
+
 1. Finetune model with parking garage datesets
 2. A **FastAPI backend** that runs the detector and exposes occupancy data via REST/WebSocket
 3. A **React frontend** with the map UI showing green/red spots or occupancy % per lot
