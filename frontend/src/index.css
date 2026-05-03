@@ -1041,7 +1041,7 @@ button:disabled {
   overflow: hidden;
   background:
     radial-gradient(900px 600px at 50% -10%, rgba(37, 99, 235, 0.10), transparent 65%),
-    radial-gradient(560px 360px at 50% 56%, rgba(251, 191, 36, 0.07), transparent 70%),
+    radial-gradient(560px 360px at 50% 56%, rgba(147, 197, 253, 0.10), transparent 70%),
     radial-gradient(800px 600px at 50% 110%, rgba(99, 102, 241, 0.08), transparent 60%),
     var(--surface);
   animation: splash-fade-out 280ms ease 1720ms both;

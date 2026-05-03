@@ -121,12 +121,16 @@ function SplashScene() {
       aria-hidden="true"
     >
       <defs>
-        {/* Road — top-to-bottom: lifts toward horizon (atmospheric perspective),
-            settles slightly cooler near the viewer for depth. */}
+        {/* Road — top edge is fully transparent so the trapezoid dissolves
+            into the horizon haze instead of meeting it as a hard line. The
+            road then ramps to opaque atmospheric blue-gray as it nears the
+            viewer (atmospheric perspective: lighter far, denser near). */}
         <linearGradient id="splash-road" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f1f5f9" />
-          <stop offset="55%" stopColor="#e1e7ef" />
-          <stop offset="100%" stopColor="#cdd6e3" />
+          <stop offset="0%" stopColor="#f1f5f9" stopOpacity="0" />
+          <stop offset="18%" stopColor="#eaeff7" stopOpacity="0.85" />
+          <stop offset="55%" stopColor="#e1e7ef" stopOpacity="1" />
+          <stop offset="82%" stopColor="#d8e0ec" stopOpacity="0.92" />
+          <stop offset="100%" stopColor="#c5cfdf" stopOpacity="0" />
         </linearGradient>
 
         {/* Five-stop metallic body gradient — sky-tint at roof, true brand
@@ -134,11 +138,11 @@ function SplashScene() {
             "wet paint" feel. Extra mid-stops give the body subtle banding
             that reads as a curved metal panel rather than a flat fill. */}
         <linearGradient id="splash-body" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#7eb1fa" />
-          <stop offset="22%" stopColor="#3b82f6" />
-          <stop offset="55%" stopColor="#2563eb" />
-          <stop offset="80%" stopColor="#1e3a8a" />
-          <stop offset="100%" stopColor="#0f1f4d" />
+          <stop offset="0%" stopColor="#6b9adf" />
+          <stop offset="22%" stopColor="#2c6bdf" />
+          <stop offset="55%" stopColor="#1f55c4" />
+          <stop offset="80%" stopColor="#1a3477" />
+          <stop offset="100%" stopColor="#0c1a3e" />
         </linearGradient>
 
         {/* Lower-body shadow gradient — darkens the underside / skirt for
@@ -186,12 +190,17 @@ function SplashScene() {
           </feMerge>
         </filter>
 
-        {/* Warm horizon glow — soft golden-hour wash behind the city.
-            Provides the welcoming, "city at sunrise" mood. */}
+        {/* "City light" horizon glow — soft pale champagne core blended
+            into cool blue-gray flanks. Reads like reflected ambient light
+            at dusk: not golden-hour, not icy mist. Multi-stop so the
+            warm-white peak sits centered in the band and dissolves into
+            cool tones above and below. */}
         <linearGradient id="splash-horizon-warm" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#fdba74" stopOpacity="0" />
-          <stop offset="55%" stopColor="#fbbf24" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#fbbf24" stopOpacity="0" />
+          <stop offset="0%" stopColor="#b6c4d8" stopOpacity="0" />
+          <stop offset="30%" stopColor="#c2cee0" stopOpacity="0.08" />
+          <stop offset="55%" stopColor="#efddb2" stopOpacity="0.24" />
+          <stop offset="75%" stopColor="#c8d3e3" stopOpacity="0.08" />
+          <stop offset="100%" stopColor="#b6c4d8" stopOpacity="0" />
         </linearGradient>
 
         {/* Atmospheric haze around the horizon line — softens building bases
@@ -200,6 +209,19 @@ function SplashScene() {
           <stop offset="0%" stopColor="white" stopOpacity="0" />
           <stop offset="50%" stopColor="white" stopOpacity="0.55" />
           <stop offset="100%" stopColor="white" stopOpacity="0" />
+        </linearGradient>
+
+        {/* Skyline edge fades — narrow gradients used as overlay rects to
+            soften the cityscape's outer left and right edges into the
+            splash background, so the city reads as part of one continuous
+            scene instead of a rectangular block ending abruptly. */}
+        <linearGradient id="splash-skyline-fade-left" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="white" stopOpacity="1" />
+          <stop offset="100%" stopColor="white" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="splash-skyline-fade-right" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="white" stopOpacity="0" />
+          <stop offset="100%" stopColor="white" stopOpacity="1" />
         </linearGradient>
 
         {/* Road haze — lighter near the horizon end of the trapezoid only,
@@ -389,6 +411,14 @@ function SplashScene() {
         </g>
       </g>
 
+      {/* Skyline outer-edge fades — narrow vertical bands at the left and
+          right sides of the SVG, white at the outermost edge fading to
+          transparent inward, that gently dissolve the leftmost and
+          rightmost buildings into the splash background so the cityscape
+          stops reading as a rectangular inserted block. */}
+      <rect x="0" y="40" width="64" height="80" fill="url(#splash-skyline-fade-left)" />
+      <rect x="336" y="40" width="64" height="80" fill="url(#splash-skyline-fade-right)" />
+
       {/* Wide atmospheric haze band — diffuses the line where the city
           meets the ground so the road never lands as a hard pasted-on
           trapezoid. The band overlaps both the building bases above and
@@ -404,16 +434,17 @@ function SplashScene() {
           horizon end, blends the road into the haze tone above. */}
       <path d="M 162 114 L 238 114 L 380 240 L 20 240 Z" fill="url(#splash-road-haze)" />
 
-      {/* Soft white edge highlights, fading away near the horizon. */}
+      {/* Soft white edge highlights — start a few px below the horizon
+          so they never poke through the haze as a hard line. */}
       <path
-        d="M 162 114 L 20 240"
-        stroke="rgba(255,255,255,0.55)"
+        d="M 151 124 L 20 240"
+        stroke="rgba(255,255,255,0.5)"
         strokeWidth="1.5"
         strokeLinecap="round"
       />
       <path
-        d="M 238 114 L 380 240"
-        stroke="rgba(255,255,255,0.55)"
+        d="M 249 124 L 380 240"
+        stroke="rgba(255,255,255,0.5)"
         strokeWidth="1.5"
         strokeLinecap="round"
       />
@@ -429,137 +460,111 @@ function SplashScene() {
         opacity="0.92"
       />
 
-      {/* Car — bold flat side-view sedan in the Icons8 Color style.
-          Solid navy body (deep premium blue), dark tinted glass, clean
-          wheels with cross spokes that visibly rotate. The whole car
-          gently bobs; the road's center dashes scroll toward the viewer
-          so the static car reads as cruising forward. */}
+      {/* Car — based on the "Car Outbound" asset from SVG Repo
+          (https://www.svgrepo.com/svg/436385/car-outbound, openly
+          licensed). Body recolored to SwiftPark navy, glass to dark
+          navy, taillights kept red. Wrapped in three transforms:
+            translate(200, 175) — splash position (car center)
+            .splash__car        — CSS bob animation hook
+            scale(0.7) translate(-180,-110.85) — normalize the asset's
+              own bounding-box center to (0,0) so the outer translate
+              actually centers it on the road.
+            matrix(1.27,...,88.581,-65.6388) — the asset's original
+              outer transform, preserved verbatim. */}
 
-      {/* Soft ground shadow — stays static under the car so the bob
-          doesn't carry the shadow with it. */}
-      <ellipse cx="200" cy="216" rx="62" ry="3.2" fill="#0f172a" opacity="0.18" />
-      <ellipse cx="200" cy="215" rx="48" ry="2.2" fill="#0f172a" opacity="0.26" />
+      {/* Soft ground shadow — under the wheels (which land at y≈223
+          after the splash transform). Stays static so the bob doesn't
+          drag it along. */}
+      <ellipse cx="200" cy="225" rx="76" ry="4" fill="#0f172a" opacity="0.18" />
+      <ellipse cx="200" cy="224" rx="56" ry="2.6" fill="#0f172a" opacity="0.28" />
 
-      {/* Subtle headlight glow ahead of the car (right side). */}
-      <ellipse
-        cx="284"
-        cy="200"
-        rx="20"
-        ry="5.5"
-        fill="url(#splash-headlight)"
-      />
+      <g transform="translate(200, 175)">
+        <g className="splash__car">
+          <g transform="scale(0.7) translate(-180, -110.85)">
+            <g transform="matrix(1.27,0,0,1.27,88.581,-65.6388)">
+              {/* Right-end reflector cluster */}
+              <g transform="matrix(1,0,0,1,0,-10.3296)">
+                <path d="M127.589,121.742L141.24,119.292L144.04,112.013L128.779,109.351L127.52,116.072L125.199,118.411L127.589,121.742Z" fill="#cbd5e1" fillRule="nonzero" />
+              </g>
+              <g transform="matrix(1,0,0,1,0,-10.3296)">
+                <path d="M127.604,121.746L125.277,118.252L127.536,116.067L128.805,109.37L130.102,109.578L136.723,120.08L127.604,121.746Z" fill="#94a3b8" fillRule="nonzero" />
+              </g>
+              <g transform="matrix(1,0,0,1,0,-10.3296)">
+                <path d="M130.896,111.731L129.916,118.872L139.532,117.723L141.032,113.64L130.896,111.731Z" fill="#0a0e1a" fillRule="nonzero" />
+              </g>
 
-      {/* Wrap handles position; inner .splash__car handles the bob. */}
-      <g transform="translate(133, 168)">
-        <g
-          className="splash__car"
-          filter="url(#splash-car-shadow)"
-        >
-          {/* Front wheel (drawn first so the body's lower edge clips
-              the top of the wheel into a clean arch). */}
-          <g transform="translate(108, 50)">
-            <g className="splash__car-wheel">
-              <circle r="11" fill="#1e293b" />
-              <circle r="6.5" fill="#475569" />
-              <circle r="3" fill="#0f172a" />
-              {/* Cross spokes — make rotation legible on the splash. */}
-              <line x1="-7" y1="0" x2="7" y2="0" stroke="#0f172a" strokeWidth="1.4" strokeLinecap="round" />
-              <line x1="0" y1="-7" x2="0" y2="7" stroke="#0f172a" strokeWidth="1.4" strokeLinecap="round" />
+              {/* Left-end reflector cluster */}
+              <g transform="matrix(1,0,0,1,0,-10.3296)">
+                <path d="M0,111.919L2.8,119.198L16.451,121.648L18.841,118.317L16.52,115.978L15.26,109.258L0,111.919Z" fill="#cbd5e1" fillRule="nonzero" />
+              </g>
+              <g transform="matrix(1,0,0,1,0,-10.3296)">
+                <path d="M16.467,121.646L18.794,118.152L16.535,115.967L15.266,109.27L13.969,109.478L7.328,120.009L16.467,121.646Z" fill="#94a3b8" fillRule="nonzero" />
+              </g>
+              <g transform="matrix(1,0,0,1,0,-10.3296)">
+                <path d="M13.145,111.638L14.125,118.779L4.509,117.63L3.009,113.547L13.145,111.638Z" fill="#0a0e1a" fillRule="nonzero" />
+              </g>
+
+              {/* Wheel housings — left and right */}
+              <path d="M3.89,173.884L5.57,193.416L24.891,193.416L28.882,173.674L3.89,173.884Z" fill="#1e293b" fillRule="nonzero" />
+              <path d="M24.052,173.674L24.892,193.416L30.884,173.674L24.052,173.674Z" fill="#0a0e1a" fillRule="nonzero" />
+              <path d="M117.358,193.416L136.708,193.416L138.388,174.095L113.395,173.884L117.358,193.416Z" fill="#1e293b" fillRule="nonzero" />
+              <path d="M111.394,173.884L117.358,193.416L118.227,173.884L111.394,173.884Z" fill="#0a0e1a" fillRule="nonzero" />
+
+              {/* MAIN BODY — recolored to SwiftPark navy */}
+              <g transform="matrix(1,0,0,1.13153,0,-22.926)">
+                <path d="M29.468,85.928L1.35,135.269L3.869,173.884L5.759,173.89L138.396,174.304L142.192,135.508L114.687,85.928L29.468,85.928Z" fill="url(#splash-body)" fillRule="nonzero" />
+              </g>
+
+              {/* Left taillight cluster — kept red */}
+              <g transform="matrix(1,0,0,1,0,-4.6582)">
+                <path d="M1.345,135.384L2.179,149.968L20.691,149.97L21.632,135.468L1.345,135.384Z" fill="#ef4444" fillRule="nonzero" />
+              </g>
+              <g transform="matrix(1,0,0,1,0,-4.6582)">
+                <path d="M25.882,135.426L32.923,145.886L28.468,150.055L20.697,149.95L21.752,135.487L25.882,135.426Z" fill="#f1f5f9" fillRule="nonzero" />
+              </g>
+
+              {/* Right taillight cluster — kept red */}
+              <g transform="matrix(1,0,0,1,0,-4.6582)">
+                <path d="M142.191,135.425L140.942,149.926L122.76,149.97L121.71,135.479L142.191,135.425Z" fill="#ef4444" fillRule="nonzero" />
+              </g>
+              <g transform="matrix(1,0,0,1,0,-4.6582)">
+                <path d="M117.706,135.478L111.697,145.925L116.114,149.969L122.78,149.925L121.697,135.466L117.706,135.478Z" fill="#f1f5f9" fillRule="nonzero" />
+              </g>
+
+              {/* Rear window — recolored to dark navy / slate */}
+              <g transform="matrix(1,0,0,1.348,0,-42.2467)">
+                <path d="M34.958,90.982L20.329,115.477L122.254,115.477L109.584,90.982L34.958,90.982Z" fill="url(#splash-window)" fillRule="nonzero" />
+              </g>
+
+              {/* Decorative dot — kept dark */}
+              <path d="M43.968,171.364C43.968,174.147 41.711,176.405 38.928,176.405C36.145,176.405 33.887,174.147 33.887,171.364C33.887,168.581 36.145,166.324 38.928,166.324C41.711,166.324 43.968,168.581 43.968,171.364" fill="#0a0e1a" fillRule="nonzero" />
+
+              {/* Bumper trim line */}
+              <g transform="matrix(1,0,0,1,0,-4.6582)">
+                <path d="M32.922,145.804L28.468,150.075L116.072,149.97L111.655,145.804L32.922,145.804Z" fill="#94a3b8" fillRule="nonzero" />
+              </g>
+
+              {/* License plate — kept light */}
+              <g transform="matrix(1,0,0,1,0,-4.1445)">
+                <path d="M55.3,156.916L52.264,167.561L87.671,167.561L84.67,157.046L55.3,156.916Z" fill="#f1f5f9" fillRule="nonzero" />
+              </g>
+
+              {/* Body shadow (left side) — darkened to read on the
+                  new navy body */}
+              <g transform="matrix(1.35601,0,0,1.35601,-9.08601,-43.1939)">
+                <path d="M32.477,91.143L21.692,115.493L36.423,115.493L60.694,91.143L32.477,91.143Z" fill="#050a18" fillOpacity="0.42" fillRule="nonzero" />
+              </g>
+
+              {/* Body shadow (top / right) */}
+              <path d="M109.62,80.397L105.969,80.397L72.75,113.417L122.254,113.417L109.62,80.397Z" fill="#0a1723" fillOpacity="0.4" fillRule="nonzero" />
+
+              {/* Window reflection — slight tinted highlight on the
+                  glass to keep it readable against the new dark fill */}
+              <g transform="matrix(1.34973,0,0,1.34973,-25.576,-42.4401)">
+                <path d="M73.249,115.472L97.46,91.008L91.32,91.008L67.526,115.472L73.249,115.472Z" fill="#3b4f8a" fillRule="nonzero" />
+              </g>
             </g>
           </g>
-
-          {/* Rear wheel */}
-          <g transform="translate(32, 50)">
-            <g className="splash__car-wheel">
-              <circle r="11" fill="#1e293b" />
-              <circle r="6.5" fill="#475569" />
-              <circle r="3" fill="#0f172a" />
-              <line x1="-7" y1="0" x2="7" y2="0" stroke="#0f172a" strokeWidth="1.4" strokeLinecap="round" />
-              <line x1="0" y1="-7" x2="0" y2="7" stroke="#0f172a" strokeWidth="1.4" strokeLinecap="round" />
-            </g>
-          </g>
-
-          {/* Body — bold flat navy silhouette (Icons8 Color style is
-              about confident solid color, not multi-stop gradients). */}
-          <path
-            d="M 8 50
-               L 8 36
-               Q 8 30 13 28
-               L 26 26
-               L 48 8
-               L 92 8
-               L 114 26
-               L 127 28
-               Q 132 30 132 36
-               L 132 50
-               Z"
-            fill="#1e3a8a"
-          />
-
-          {/* Lower-body shadow strip — adds dimension without breaking
-              the flat color discipline. */}
-          <path
-            d="M 8 42 L 132 42 L 132 50 L 8 50 Z"
-            fill="rgba(0,0,0,0.22)"
-          />
-
-          {/* Glass — single dark trapezoid spanning windshield + rear
-              window, with B-pillar splitting the cabin. */}
-          <path
-            d="M 28 26 L 48 10 L 92 10 L 112 26 Z"
-            fill="#0a1640"
-          />
-          <line
-            x1="70"
-            y1="10"
-            x2="70"
-            y2="26"
-            stroke="#050b22"
-            strokeWidth="1.6"
-          />
-
-          {/* Roof crown highlight — single bright line. */}
-          <path
-            d="M 49 9 L 91 9"
-            stroke="rgba(255,255,255,0.55)"
-            strokeWidth="0.9"
-            strokeLinecap="round"
-          />
-          {/* Window reflection — single subtle highlight on the windshield. */}
-          <path
-            d="M 80 14 L 100 22"
-            stroke="rgba(255,255,255,0.32)"
-            strokeWidth="0.8"
-            strokeLinecap="round"
-          />
-
-          {/* Belt-line — subtle horizontal panel break. */}
-          <line
-            x1="14"
-            y1="36"
-            x2="126"
-            y2="36"
-            stroke="rgba(0,0,0,0.28)"
-            strokeWidth="0.5"
-          />
-
-          {/* Headlight — clean cool-white circle with a warm core, the
-              only "complex" detail in the otherwise flat design. */}
-          <circle cx="124" cy="32" r="2.6" fill="#e0eaff" />
-          <circle cx="124" cy="32" r="1.4" fill="#fffbeb" opacity="0.95" />
-
-          {/* Tail light — single coral block. */}
-          <rect x="6.5" y="30.5" width="6.5" height="3.4" rx="1.2" fill="#ef4444" />
-
-          {/* License plate. */}
-          <rect
-            x="11"
-            y="35"
-            width="11"
-            height="3.6"
-            rx="0.6"
-            fill="#f1f5f9"
-          />
         </g>
       </g>
     </svg>
