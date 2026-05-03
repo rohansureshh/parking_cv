@@ -51,6 +51,7 @@ class ConnectionManager:
         for ws in self.active:
             try:
                 await ws.send_text(data)
+                print(f"Broadcast sent to {len(self.active)} client(s)")  
             except Exception:
                 disconnected.append(ws)
         for ws in disconnected:
@@ -75,18 +76,18 @@ worker = CameraWorker(
     capacity=LOT_CAPACITY,
     model_path=YOLO_MODEL,
     spots_config=spots_config,
+    loop_video=True,
 )
 
 def on_snapshot_update(snapshot: OccupancySnapshot):
-    """Called by camera worker whenever a new snapshot is ready."""
+    print(f"Snapshot fired: {snapshot.vehicles_detected} vehicles")  
     data = snapshot.model_dump_json()
-    # Schedule the async broadcast from the sync thread
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
             asyncio.run_coroutine_threadsafe(manager.broadcast(data), loop)
     except RuntimeError:
-        pass  # No event loop yet during startup
+        pass
 
 worker.set_update_callback(on_snapshot_update)
 

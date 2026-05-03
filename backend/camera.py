@@ -130,16 +130,30 @@ class CameraWorker:
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     self._running = False
 
+
+                # status=compute_status(result.occupancy_pct),
+
                 # Build snapshot
                 snapshot = OccupancySnapshot(
+                    lot_id="lot_1",
+                    lot_slug="lot-1",
+                    lot_name="Demo Parking Lot",
+                    location="123 Main St",
+                    facility_status=compute_status(result.occupancy_pct),
                     timestamp=datetime.now(timezone.utc),
                     capacity=self.capacity,
-                    vehicles_detected=result.smoothed_count,
-                    available_spots=max(self.capacity - result.smoothed_count, 0),
+                    available=max(self.capacity - result.smoothed_count, 0),
+                    occupied=result.smoothed_count,
+                    unknown=0,
                     occupancy_pct=round(result.occupancy_pct, 3),
-                    status=compute_status(result.occupancy_pct),
                     spots=[
-                        SpotStatus(spot_id=s.spot_id, is_occupied=s.is_occupied)
+                        SpotStatus(
+                            id=s.spot_id,
+                            label=s.spot_id,
+                            level="1",
+                            status="occupied" if s.is_occupied else "available",
+                            confidence=1.0,
+                        )
                         for s in result.spots
                     ],
                 )
