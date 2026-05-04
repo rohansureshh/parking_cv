@@ -9,24 +9,27 @@ interface BrightonMockZone {
   confidence: number;
 }
 
-// TODO: Replace these placeholder capacities/counts after the senior dev
-// confirms Brighton's Zone 2 and Zone 3 camera plan and lot capacities.
+// Brighton Zone 2 / Zone 3 are estimated/mock for the demo. The
+// authoritative source is the backend `/demo/brighton-mock-zones`
+// endpoint (see api/main.py) — this constant is the offline fallback
+// used by `api.ts` when that endpoint is unreachable, so the visible
+// demo never breaks. Capacities mirror the backend numbers exactly.
 export const BRIGHTON_MOCK_ZONES: readonly BrightonMockZone[] = [
   {
     level: "Z2",
     labelPrefix: "Z2",
-    capacity: 72,
-    occupied: 31,
-    unknown: 4,
+    capacity: 30,
+    occupied: 12,
+    unknown: 2,
     confidence: 0.88,
   },
   {
     level: "Z3",
     labelPrefix: "Z3",
-    capacity: 58,
-    occupied: 19,
-    unknown: 3,
-    confidence: 0.86,
+    capacity: 20,
+    occupied: 7,
+    unknown: 1,
+    confidence: 0.85,
   },
 ] as const;
 

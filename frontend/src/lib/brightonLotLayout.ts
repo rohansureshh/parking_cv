@@ -86,7 +86,15 @@ const ROW_GAP_THRESHOLD_PX = 45;
 const SURFACE_SPOT_W = 2.4;
 const SURFACE_SPOT_D = 4.8;
 const SURFACE_SPOT_GAP_X = 0.06;
-const SURFACE_ROW_PITCH_Z = 8.4; // row-center → next-row-center
+// Two row-to-row spacings: a hairline back-to-back gap (paired rows
+// share a back wall, no drivable lane between them) and a full
+// drivable aisle gap (between pairs).
+export const SURFACE_BACK_TO_BACK_GAP = 0.08;
+export const SURFACE_AISLE_GAP = 3.6;
+// Anything below this row-to-row delta is treated as a back-to-back
+// boundary by the renderer. Above it, the renderer draws a lane.
+export const SURFACE_AISLE_DETECT_THRESHOLD =
+  SURFACE_SPOT_D + (SURFACE_BACK_TO_BACK_GAP + SURFACE_AISLE_GAP) / 2;
 
 /**
  * Zone 1 row inference, computed once at module load. Each entry is a
@@ -197,8 +205,13 @@ function buildZoneOneLayout(spots: readonly Spot[]): BrightonLotSpace[] {
   // lot rather than drop it. This keeps the main layout untouched.
   const known = new Set(calibrated.map((space) => space.label.toUpperCase()));
   const extras: BrightonLotSpace[] = [];
+  // Overflow row sits a couple of row-strides behind the last
+  // calibrated row so it's clearly separate from the main lot.
+  const lastCalibratedZ = calibrated.length > 0
+    ? Math.min(...calibrated.map((space) => space.z))
+    : 0;
   const overflowZ =
-    -((ZONE1_ROWS.length + 1) / 2) * SURFACE_ROW_PITCH_Z - SURFACE_SPOT_D * 0.6;
+    lastCalibratedZ - (SURFACE_SPOT_D + SURFACE_AISLE_GAP);
 
   spots.forEach((spot, idx) => {
     if (known.has(spot.label.toUpperCase())) return;
@@ -232,9 +245,9 @@ function buildGeneratedZoneLayout(
   count: number,
 ): BrightonLotSpace[] {
   const safeCount = Math.max(count, 0);
-  // Slightly different column counts so Z2 / Z3 read as visually
-  // distinct mock zones while still using the standardized stall.
-  const cols = zone === "Z2" ? 12 : 10;
+  // Both mock zones use cols=10 so the post-Phase-5D capacities (Z2=30,
+  // Z3=20) render as clean even rows of ten — no orphan partial rows.
+  const cols = 10;
   const rowCount = Math.max(1, Math.ceil(safeCount / cols));
 
   const rows: string[][] = [];
@@ -253,11 +266,14 @@ function buildGeneratedZoneLayout(
 
 /**
  * Snap a list of label-rows into a clean standardized grid:
- *   - row 0 (input) = front of the lot, places at +Z
- *   - last row     = back of the lot,  places at -Z
+ *   - row 0 (input) = front of the lot, places at largest +Z
+ *   - last row     = back of the lot,  places at smallest -Z
  *   - within a row, labels run left → right at +SURFACE_SPOT_W stride
- *   - alternate rows mirror their rotation so cars in adjacent rows nose
- *     opposite directions, matching how a real double-loaded lot reads
+ *   - rows are paired into back-to-back pairs: rows 0+1, 2+3, 4+5, ...
+ *     share a back wall (no drivable lane between them). Between pairs
+ *     (rows 1↔2, 3↔4, ...) we leave a full aisle so the lot reads as
+ *     a real double-loaded surface lot. Adjacent rows always mirror
+ *     their rotation so cars in a back-to-back pair nose opposite ways.
  */
 function placeRowsInLot(
   rows: readonly (readonly string[])[],
@@ -267,13 +283,25 @@ function placeRowsInLot(
   const result: BrightonLotSpace[] = [];
   const rowCount = rows.length;
   if (rowCount === 0) return result;
-  const middle = (rowCount - 1) / 2;
+
+  // Walk rows front → back, accumulating Z by either the back-to-back
+  // gap (within a pair) or the full aisle gap (between pairs).
+  const zPositions: number[] = [0];
+  for (let i = 1; i < rowCount; i++) {
+    const prevWasPairStart = (i - 1) % 2 === 0;
+    const gap = prevWasPairStart
+      ? SURFACE_SPOT_D + SURFACE_BACK_TO_BACK_GAP
+      : SURFACE_SPOT_D + SURFACE_AISLE_GAP;
+    zPositions.push(zPositions[i - 1] - gap);
+  }
+  // Center the row stack on Z=0 so the camera frames the lot evenly.
+  const minZ = Math.min(...zPositions);
+  const maxZ = Math.max(...zPositions);
+  const zCenter = (minZ + maxZ) / 2;
+  const adjustedZs = zPositions.map((z) => z - zCenter);
 
   rows.forEach((rowLabels, rowIndex) => {
-    // FRONT row (rowIndex 0) sits at largest +Z; further-back rows step
-    // toward -Z. Camera default theta/phi looks down toward origin from
-    // +Z, so this places the front row closest to the viewer.
-    const z = (middle - rowIndex) * SURFACE_ROW_PITCH_Z;
+    const z = adjustedZs[rowIndex];
     const rotation = rowIndex % 2 === 0 ? 0 : Math.PI;
 
     const stride = SURFACE_SPOT_W + SURFACE_SPOT_GAP_X;

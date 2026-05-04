@@ -6,7 +6,10 @@ import {
   preloadCarModels,
   spawnCarFromModel,
 } from "./carModelLoader";
-import type { BrightonLotSpace } from "../../lib/brightonLotLayout";
+import {
+  SURFACE_AISLE_DETECT_THRESHOLD,
+  type BrightonLotSpace,
+} from "../../lib/brightonLotLayout";
 import type { Spot, SpotStatus } from "../../lib/types";
 
 const STATUS_COLOR: Record<SpotStatus | "selected", number> = {
@@ -378,6 +381,12 @@ function buildSurface(
     const numArrows = Math.max(2, Math.floor((bounds.width - 4) / arrowSpacing));
 
     for (let i = 0; i < rowZs.length - 1; i++) {
+      const gap = Math.abs(rowZs[i + 1] - rowZs[i]);
+      // Skip back-to-back row pairs — those share a back wall and don't
+      // have a drivable lane between them, so painting one would draw
+      // a stripe across stall edges.
+      if (gap < SURFACE_AISLE_DETECT_THRESHOLD) continue;
+
       const laneZ = (rowZs[i] + rowZs[i + 1]) / 2;
 
       const lane = new THREE.Mesh(

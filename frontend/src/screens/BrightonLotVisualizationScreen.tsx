@@ -204,7 +204,7 @@ export function BrightonLotVisualizationScreen({
               activeLevel={activeZone}
               onRecenter={handleRecenter}
               showHint={!selectedSpotId}
-              modeLabel="Lot 3D"
+              modeLabel="3D"
               sectionLabel="Zone"
             />
           </div>

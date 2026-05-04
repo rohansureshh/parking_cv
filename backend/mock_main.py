@@ -291,3 +291,99 @@ def simulate_detection():
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ----------------------------------------------------------------------
+# Brighton Zone 2 / Zone 3 mock data
+# ----------------------------------------------------------------------
+#
+# Brighton Zone 1 is served live from the YOLO backend (`/status` on
+# port 8001). Zones 2 and 3 are estimated/mock for the demo. They live
+# in this same FastAPI process so the frontend can pick them up with the
+# same /demo/* base URL used for OSU. The data is deterministic — we
+# don't randomise here so simulations don't make Brighton's mock zones
+# silently drift.
+
+BRIGHTON_MOCK_ZONES = (
+    {
+        "level": "Z2",
+        "label_prefix": "Z2",
+        "capacity": 30,
+        "occupied": 12,
+        "unknown": 2,
+        "confidence": 0.88,
+    },
+    {
+        "level": "Z3",
+        "label_prefix": "Z3",
+        "capacity": 20,
+        "occupied": 7,
+        "unknown": 1,
+        "confidence": 0.85,
+    },
+)
+
+
+def _build_brighton_mock_spots() -> list[dict]:
+    """Deterministic spot list for Brighton Zones 2 + 3."""
+    spots: list[dict] = []
+    for zone in BRIGHTON_MOCK_ZONES:
+        capacity = int(zone["capacity"])
+        occupied = min(int(zone["occupied"]), capacity)
+        unknown = min(int(zone["unknown"]), max(capacity - occupied, 0))
+        available = max(capacity - occupied - unknown, 0)
+        statuses: list[str] = (
+            ["available"] * available
+            + ["occupied"] * occupied
+            + ["unknown"] * unknown
+        )[:capacity]
+        for index, status in enumerate(statuses):
+            label_num = f"{index + 1:03d}"
+            confidence = (
+                round(float(zone["confidence"]) - 0.4, 2)
+                if status == "unknown"
+                else float(zone["confidence"])
+            )
+            spots.append(
+                {
+                    "id": f"brighton-{zone['level'].lower()}-{label_num}",
+                    "label": f"{zone['label_prefix']}-{label_num}",
+                    "level": zone["level"],
+                    "status": status,
+                    "confidence": confidence,
+                }
+            )
+    return spots
+
+
+@app.get("/demo/brighton-mock-zones")
+def get_brighton_mock_zones():
+    """Return the Brighton Zone 2 + Zone 3 mock occupancy.
+
+    Frontend `api.ts` fetches this in parallel with the YOLO
+    `/status` (Zone 1 live) and stitches the two responses into a
+    combined Brighton Occupancy. Zone 1 stays driven by the camera.
+    """
+    spots = _build_brighton_mock_spots()
+    capacity = sum(int(z["capacity"]) for z in BRIGHTON_MOCK_ZONES)
+    available = sum(1 for s in spots if s["status"] == "available")
+    occupied = sum(1 for s in spots if s["status"] == "occupied")
+    unknown = sum(1 for s in spots if s["status"] == "unknown")
+    return {
+        "zones": [
+            {
+                "level": zone["level"],
+                "label_prefix": zone["label_prefix"],
+                "capacity": int(zone["capacity"]),
+                "occupied": int(zone["occupied"]),
+                "unknown": int(zone["unknown"]),
+                "confidence": float(zone["confidence"]),
+            }
+            for zone in BRIGHTON_MOCK_ZONES
+        ],
+        "capacity": capacity,
+        "available": available,
+        "occupied": occupied,
+        "unknown": unknown,
+        "spots": spots,
+    }

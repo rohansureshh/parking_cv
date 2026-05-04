@@ -10,6 +10,24 @@ import {
 } from "./facilities";
 import type { FacilityStatus, Occupancy, Spot, SpotStatus } from "./types";
 
+interface BrightonMockZoneSummary {
+  level: string;
+  label_prefix?: string;
+  capacity: number;
+  occupied?: number;
+  unknown?: number;
+  confidence?: number;
+}
+
+interface BrightonMockZonesPayload {
+  zones?: BrightonMockZoneSummary[];
+  capacity?: number;
+  available?: number;
+  occupied?: number;
+  unknown?: number;
+  spots?: YoloSpotResponse[];
+}
+
 const RAW_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 const RAW_YOLO_BASE =
   import.meta.env.VITE_YOLO_API_BASE_URL ?? "http://127.0.0.1:8001";
@@ -266,10 +284,64 @@ function buildBrightonZoneOneSpots(yolo: YoloStatusResponse): Spot[] {
   });
 }
 
-function normalizeBrightonOccupancy(yolo: YoloStatusResponse): Occupancy {
+function buildMockSpotsFromPayload(payload: BrightonMockZonesPayload): Spot[] {
+  if (Array.isArray(payload.spots) && payload.spots.length > 0) {
+    return payload.spots.map((spot, index) => ({
+      id:
+        spot.id ??
+        `brighton-${(spot.level ?? "zX").toLowerCase()}-${String(index + 1).padStart(3, "0")}`,
+      label: spot.label?.trim() || `Z${index + 1}`,
+      level: spot.level ?? "Z2",
+      status: normalizeSpotStatus(spot.status),
+      confidence: normalizeConfidence(spot.confidence),
+    }));
+  }
+  // Endpoint returned summaries only — synthesize spots from counts.
+  if (Array.isArray(payload.zones) && payload.zones.length > 0) {
+    return payload.zones.flatMap((zone) => {
+      const capacity = Math.max(toCount(zone.capacity), 0);
+      const occupied = Math.min(toCount(zone.occupied), capacity);
+      const unknown = Math.min(
+        toCount(zone.unknown),
+        Math.max(capacity - occupied, 0),
+      );
+      const available = Math.max(capacity - occupied - unknown, 0);
+      return makeSpotsFromCounts({
+        level: zone.level,
+        labelPrefix: zone.label_prefix ?? zone.level,
+        available,
+        occupied,
+        unknown,
+        confidence: normalizeConfidence(zone.confidence ?? 0.86),
+      });
+    });
+  }
+  // Final fallback to bundled local mock data.
+  return buildBrightonMockZoneSpots();
+}
+
+function mockCapacityFromPayload(payload: BrightonMockZonesPayload): number {
+  if (Array.isArray(payload.zones) && payload.zones.length > 0) {
+    return payload.zones.reduce(
+      (total, zone) => total + Math.max(toCount(zone.capacity), 0),
+      0,
+    );
+  }
+  if (isFiniteNumber(payload.capacity)) return Math.max(payload.capacity, 0);
+  if (Array.isArray(payload.spots)) return payload.spots.length;
+  return BRIGHTON_MOCK_ZONES.reduce(
+    (total, zone) => total + zone.capacity,
+    0,
+  );
+}
+
+function normalizeBrightonOccupancy(
+  yolo: YoloStatusResponse,
+  mockPayload: BrightonMockZonesPayload,
+): Occupancy {
   const facility = getFacility(BRIGHTON_FACILITY_SLUG);
   const zoneOneSpots = buildBrightonZoneOneSpots(yolo);
-  const mockZoneSpots = buildBrightonMockZoneSpots();
+  const mockZoneSpots = buildMockSpotsFromPayload(mockPayload);
   const spots = [...zoneOneSpots, ...mockZoneSpots];
   const hasRealZoneOneSpots =
     Array.isArray(yolo.spots) && yolo.spots.length > 0;
@@ -290,10 +362,7 @@ function normalizeBrightonOccupancy(yolo: YoloStatusResponse): Occupancy {
       })
     : zoneOneMappedCounts;
   const mockCounts = countSpots(mockZoneSpots);
-  const mockCapacity = BRIGHTON_MOCK_ZONES.reduce(
-    (total, zone) => total + zone.capacity,
-    0,
-  );
+  const mockCapacity = mockCapacityFromPayload(mockPayload);
   const capacity = zoneOneCapacity + mockCapacity;
   const counts = {
     available: zoneOneCounts.available + mockCounts.available,
@@ -321,6 +390,36 @@ function normalizeBrightonOccupancy(yolo: YoloStatusResponse): Occupancy {
   };
 }
 
+function localBrightonMockZonesPayload(): BrightonMockZonesPayload {
+  return {
+    zones: BRIGHTON_MOCK_ZONES.map((zone) => ({
+      level: zone.level,
+      label_prefix: zone.labelPrefix,
+      capacity: zone.capacity,
+      occupied: zone.occupied,
+      unknown: zone.unknown,
+      confidence: zone.confidence,
+    })),
+    spots: buildBrightonMockZoneSpots() as unknown as YoloSpotResponse[],
+  };
+}
+
+async function fetchBrightonMockZonesPayload(): Promise<BrightonMockZonesPayload> {
+  try {
+    return await request<BrightonMockZonesPayload>(
+      API_BASE_URL,
+      "/demo/brighton-mock-zones",
+    );
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[SwiftPark] /demo/brighton-mock-zones unreachable, falling back to bundled mock data",
+      err,
+    );
+    return localBrightonMockZonesPayload();
+  }
+}
+
 export function fetchOccupancy(
   facilitySlug: FacilitySlug = OSU_FACILITY_SLUG,
 ): Promise<Occupancy> {
@@ -329,9 +428,10 @@ export function fetchOccupancy(
   }
 
   if (facilitySlug === BRIGHTON_FACILITY_SLUG) {
-    return request<YoloStatusResponse>(YOLO_API_BASE_URL, "/status").then(
-      normalizeBrightonOccupancy,
-    );
+    return Promise.all([
+      request<YoloStatusResponse>(YOLO_API_BASE_URL, "/status"),
+      fetchBrightonMockZonesPayload(),
+    ]).then(([yolo, mock]) => normalizeBrightonOccupancy(yolo, mock));
   }
 
   const exhaustive: never = facilitySlug;
