@@ -1,309 +1,149 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { TopBar } from "./components/TopBar";
-import { FloorSelector } from "./components/FloorSelector";
-import { LegendRow } from "./components/LegendRow";
-import { StatsRow } from "./components/StatsRow";
-import { SimulateButton } from "./components/SimulateButton";
-import { HeroOverlays } from "./components/HeroOverlays";
-import { SpotPanel } from "./components/SpotPanel";
-import { ConfirmationModal } from "./components/ConfirmationModal";
-import ParkingGarage3D from "./components/parking/ParkingGarage3D";
+import { SplashScreen } from "./screens/SplashScreen";
+import { HomeScreen } from "./screens/HomeScreen";
+import { GarageOverviewScreen } from "./screens/GarageOverviewScreen";
+import { NavigationScreen } from "./screens/NavigationScreen";
+import { ParkedConfirmationScreen } from "./screens/ParkedConfirmationScreen";
+import { SpotVisualizationScreen } from "./screens/SpotVisualizationScreen";
+import { BrightonLotVisualizationScreen } from "./screens/BrightonLotVisualizationScreen";
+import { BusinessDashboardScreen } from "./screens/BusinessDashboardScreen";
+import { INITIAL_SCREEN, type Screen } from "./lib/navigation";
+import {
+  prefetchOccupancy,
+  type SelectedSpot,
+} from "./lib/occupancyCache";
+import {
+  BRIGHTON_FACILITY_SLUG,
+  OSU_FACILITY_SLUG,
+  type FacilitySlug,
+} from "./lib/facilities";
+import type { Spot } from "./lib/types";
 
-import { ApiError, fetchOccupancy, simulateDetection } from "./lib/api";
-import type { Occupancy, Spot } from "./lib/types";
-
-type LoadState =
-  | { kind: "loading" }
-  | { kind: "ready"; occupancy: Occupancy }
-  | { kind: "error"; error: ApiError };
-
+/**
+ * Top-level screen router + selected-spot hand-off.
+ *
+ * Flow:
+ *   splash → home → garage_overview ─┬─ view_spot_map → spot_visualization
+ *                                    └─ navigate ─────→ navigation
+ *                                                       │   ↑ back
+ *                                                       │   └── garage_overview
+ *                                                       │
+ *   spot_visualization ── confirm spot ──→ navigation (with preselected spot)
+ *   navigation ──── i've parked ────────→ parked (with preselected spot)
+ *
+ * `selectedSpot` lives in App state and is threaded into NavigationScreen
+ * and ParkedConfirmationScreen as `preselectedSpot`. It is set when the
+ * user confirms a spot in Spot Visualization, preserved across the
+ * Navigation → Parked transition, and cleared whenever the user backs
+ * out of the flow (Home / Overview / fresh entries to Spot Viz or the
+ * generic "Navigate" from Overview).
+ */
 function App() {
-  const [state, setState] = useState<LoadState>({ kind: "loading" });
-  const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
-  const [confirmedSpot, setConfirmedSpot] = useState<Spot | null>(null);
-  const [simulating, setSimulating] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [activeLevel, setActiveLevel] = useState<string | null>(null);
-  const [viewVersion, setViewVersion] = useState(0);
+  if (isDashboardRoute()) {
+    return <BusinessDashboardScreen />;
+  }
 
-  const applyOccupancy = useCallback((occupancy: Occupancy) => {
-    setState({ kind: "ready", occupancy });
-    setSelectedSpotId((current) => {
-      if (!current) return current;
-      const spot = occupancy.spots.find((s) => s.id === current);
-      return spot && spot.status === "available" ? current : null;
-    });
-  }, []);
+  const [screen, setScreen] = useState<Screen>(INITIAL_SCREEN);
+  const [selectedFacility, setSelectedFacility] =
+    useState<FacilitySlug>(OSU_FACILITY_SLUG);
+  const [selectedSpot, setSelectedSpot] = useState<SelectedSpot | null>(null);
 
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const data = await fetchOccupancy();
-      applyOccupancy(data);
-    } catch (err) {
-      const apiErr =
-        err instanceof ApiError ? err : new ApiError(String(err), "network");
-      setState({ kind: "error", error: apiErr });
-    } finally {
-      setRefreshing(false);
-    }
-  }, [applyOccupancy]);
-
+  // Warm the shared occupancy cache during splash so the first real screen
+  // renders with data on its first paint instead of flashing skeletons.
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  const handleSimulate = useCallback(async () => {
-    setSimulating(true);
-    try {
-      const data = await simulateDetection();
-      applyOccupancy(data);
-    } catch (err) {
-      const apiErr =
-        err instanceof ApiError ? err : new ApiError(String(err), "network");
-      setState({ kind: "error", error: apiErr });
-    } finally {
-      setSimulating(false);
-    }
-  }, [applyOccupancy]);
-
-  const handleSelectSpot = useCallback((spot: Spot) => {
-    setSelectedSpotId(spot.id);
+    prefetchOccupancy(OSU_FACILITY_SLUG);
   }, []);
 
-  const handleClosePanel = useCallback(() => {
-    setSelectedSpotId(null);
+  const goHome = useCallback(() => {
+    setSelectedSpot(null);
+    setScreen({ kind: "home" });
   }, []);
 
-  const handleConfirmSpot = useCallback(() => {
-    if (state.kind !== "ready" || !selectedSpotId) return;
-    const spot = state.occupancy.spots.find((s) => s.id === selectedSpotId);
-    if (spot) setConfirmedSpot(spot);
-  }, [state, selectedSpotId]);
-
-  const handleDismissConfirmation = useCallback(() => {
-    setConfirmedSpot(null);
-    setSelectedSpotId(null);
+  const goOverview = useCallback((facilitySlug: FacilitySlug) => {
+    setSelectedFacility(facilitySlug);
+    setSelectedSpot(null);
+    setScreen({ kind: "garage_overview" });
   }, []);
 
-  const handleRecenter = useCallback(() => {
-    setViewVersion((v) => v + 1);
+  const goSpotViz = useCallback(() => {
+    // Fresh visit to Spot Viz — clear any prior selection so back-out
+    // and re-entry behaves like a clean session.
+    setSelectedSpot(null);
+    setScreen({ kind: "spot_visualization" });
   }, []);
 
-  const occupancy = state.kind === "ready" ? state.occupancy : null;
-  const selectedSpot =
-    occupancy && selectedSpotId
-      ? occupancy.spots.find((s) => s.id === selectedSpotId) ?? null
-      : null;
+  const goNavigation = useCallback(() => {
+    // Generic "Navigate" from Garage Overview — no specific spot selected.
+    setSelectedSpot(null);
+    setScreen({ kind: "navigation" });
+  }, []);
 
-  const levels = useMemo(() => {
-    if (!occupancy) return [] as string[];
-    const seen = new Set<string>();
-    for (const spot of occupancy.spots) seen.add(spot.level);
-    return Array.from(seen).sort((a, b) =>
-      a.localeCompare(b, undefined, { numeric: true }),
-    );
-  }, [occupancy]);
+  /** Hand-off from SpotVisualization → Navigation with a chosen spot. */
+  const goNavigationWithSpot = useCallback((spot: Spot) => {
+    setSelectedSpot({ label: spot.label, level: spot.level });
+    setScreen({ kind: "navigation" });
+  }, []);
 
-  // Default activeLevel to the first level once data arrives, and reset if
-  // the current level disappears (e.g. backend re-seeded with different data).
-  useEffect(() => {
-    if (levels.length === 0) {
-      if (activeLevel !== null) setActiveLevel(null);
-      return;
-    }
-    if (activeLevel === null || !levels.includes(activeLevel)) {
-      setActiveLevel(levels[0]);
-    }
-  }, [levels, activeLevel]);
-
-  // When the user switches floors, clear the selection unless the selected
-  // spot lives on the new floor (per Phase 3B requirement).
-  useEffect(() => {
-    if (!selectedSpotId || !occupancy || activeLevel === null) return;
-    const spot = occupancy.spots.find((s) => s.id === selectedSpotId);
-    if (!spot || spot.level !== activeLevel) {
-      setSelectedSpotId(null);
-    }
-  }, [activeLevel, selectedSpotId, occupancy]);
-
-  const spotsOnActiveLevel = useMemo(() => {
-    if (!occupancy || activeLevel === null) return [] as Spot[];
-    return occupancy.spots.filter((s) => s.level === activeLevel);
-  }, [occupancy, activeLevel]);
-
-  const availableOnActiveLevel = useMemo(() => {
-    return spotsOnActiveLevel.reduce(
-      (acc, s) => (s.status === "available" ? acc + 1 : acc),
-      0,
-    );
-  }, [spotsOnActiveLevel]);
-
-  const selectedSpotForGarage =
-    selectedSpot && selectedSpot.level === activeLevel ? selectedSpot : null;
+  /** Navigation → Parked. Preserve `selectedSpot` so Parked can show
+   *  the same spot the user was navigating to. */
+  const goParked = useCallback(() => {
+    setScreen({ kind: "parked" });
+  }, []);
 
   return (
     <div className="app-shell">
-      <TopBar
-        title="Spot Visualization"
-        facilityStatus={occupancy?.facility_status}
-        onRefresh={() => void refresh()}
-        refreshing={refreshing}
-      />
+      {screen.kind === "splash" && <SplashScreen onDone={goHome} />}
 
-      {state.kind === "loading" && <LoadingSkeleton />}
+      {screen.kind === "home" && <HomeScreen onSelectGarage={goOverview} />}
 
-      {state.kind === "error" && (
-        <ErrorBanner error={state.error} onRetry={() => void refresh()} />
+      {screen.kind === "garage_overview" && (
+        <GarageOverviewScreen
+          onBack={goHome}
+          facilitySlug={selectedFacility}
+          onViewSpotMap={goSpotViz}
+          onNavigate={goNavigation}
+        />
       )}
 
-      {state.kind === "ready" && (
-        <div className="stack">
-          {state.occupancy.spots.length === 0 ? (
-            <EmptyNotice />
-          ) : (
-            <>
-              <FloorSelector
-                levels={levels}
-                activeLevel={activeLevel}
-                onSelect={setActiveLevel}
-              />
-
-              <div className="hero">
-                <div className="hero__canvas">
-                  <ParkingGarage3D
-                    spots={spotsOnActiveLevel}
-                    selectedSpot={selectedSpotForGarage}
-                    onSelectSpot={handleSelectSpot}
-                    viewVersion={viewVersion}
-                  />
-                </div>
-                <HeroOverlays
-                  activeLevel={activeLevel}
-                  onRecenter={handleRecenter}
-                  showHint={!selectedSpotId}
-                />
-              </div>
-
-              <LegendRow />
-              <StatsRow occupancy={state.occupancy} />
-            </>
-          )}
-
-          {selectedSpot ? (
-            <SpotPanel
-              spot={selectedSpot}
-              onConfirm={handleConfirmSpot}
-              onClose={handleClosePanel}
-            />
-          ) : (
-            <>
-              {state.occupancy.spots.length > 0 && (
-                <HintBar availableCount={availableOnActiveLevel} />
-              )}
-              <SimulateButton
-                simulating={simulating}
-                onClick={handleSimulate}
-              />
-            </>
-          )}
-        </div>
+      {screen.kind === "spot_visualization" && (
+        selectedFacility === BRIGHTON_FACILITY_SLUG ? (
+          <BrightonLotVisualizationScreen
+            onBack={() => goOverview(BRIGHTON_FACILITY_SLUG)}
+            onStartNavigation={goNavigationWithSpot}
+          />
+        ) : (
+          <SpotVisualizationScreen
+            onBack={() => goOverview(OSU_FACILITY_SLUG)}
+            onStartNavigation={goNavigationWithSpot}
+          />
+        )
       )}
 
-      {confirmedSpot && occupancy && (
-        <ConfirmationModal
-          spot={confirmedSpot}
-          garageName={occupancy.lot_name}
-          onClose={handleDismissConfirmation}
+      {screen.kind === "navigation" && (
+        <NavigationScreen
+          facilitySlug={selectedFacility}
+          onBack={() => goOverview(selectedFacility)}
+          onCancel={goHome}
+          onParked={goParked}
+          preselectedSpot={selectedSpot ?? undefined}
+        />
+      )}
+
+      {screen.kind === "parked" && (
+        <ParkedConfirmationScreen
+          facilitySlug={selectedFacility}
+          onBackToMap={goHome}
+          preselectedSpot={selectedSpot ?? undefined}
         />
       )}
     </div>
   );
 }
 
-interface HintBarProps {
-  availableCount: number;
-}
-
-function HintBar({ availableCount }: HintBarProps) {
-  return (
-    <div className="hint-bar">
-      <span className="hint-bar__text">
-        Tap a <strong>blue</strong> spot to select it
-      </span>
-      <span className="hint-bar__count">{availableCount} open</span>
-    </div>
-  );
-}
-
-function EmptyNotice() {
-  return (
-    <div className="notice">
-      <div className="notice__title">No demo data yet</div>
-      <p className="notice__body">
-        Run <code>POST /demo/seed</code> on the backend to generate sample data,
-        then refresh.
-      </p>
-    </div>
-  );
-}
-
-function LoadingSkeleton() {
-  return (
-    <div className="stack" aria-busy="true" aria-live="polite">
-      <div className="skeleton" style={{ height: 56 }} />
-      <div className="skeleton skeleton-hero" />
-      <div className="skeleton" style={{ height: 56 }} />
-      <div className="skeleton" style={{ height: 76 }} />
-    </div>
-  );
-}
-
-interface ErrorBannerProps {
-  error: ApiError;
-  onRetry: () => void;
-}
-
-function ErrorBanner({ error, onRetry }: ErrorBannerProps) {
-  if (error.kind === "missing_seed") {
-    return (
-      <div className="notice">
-        <div className="notice__title">No demo data yet</div>
-        <p className="notice__body">
-          Run <code>POST /demo/seed</code> against the backend, then retry.
-        </p>
-        <button type="button" className="notice__btn" onClick={onRetry}>
-          Retry
-        </button>
-      </div>
-    );
-  }
-
-  if (error.kind === "network") {
-    return (
-      <div className="notice notice--error">
-        <div className="notice__title">Can't reach the backend</div>
-        <p className="notice__body">
-          Start the FastAPI server on <code>http://127.0.0.1:8000</code> and try
-          again.
-        </p>
-        <button type="button" className="notice__btn" onClick={onRetry}>
-          Retry
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="notice notice--error">
-      <div className="notice__title">Something went wrong</div>
-      <p className="notice__body">{error.message}</p>
-      <button type="button" className="notice__btn" onClick={onRetry}>
-        Retry
-      </button>
-    </div>
-  );
+function isDashboardRoute(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.location.pathname.replace(/\/$/, "") === "/dashboard";
 }
 
 export default App;

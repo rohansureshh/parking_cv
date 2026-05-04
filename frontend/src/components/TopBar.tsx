@@ -11,6 +11,8 @@ interface TopBarProps {
   facilityStatus?: FacilityStatus;
   onRefresh?: () => void;
   refreshing?: boolean;
+  /** When provided, the back button is enabled and clicking it calls this. */
+  onBack?: () => void;
 }
 
 /**
@@ -28,6 +30,7 @@ export function TopBar({
   facilityStatus,
   onRefresh,
   refreshing = false,
+  onBack,
 }: TopBarProps) {
   return (
     <header className="topbar">
@@ -36,7 +39,8 @@ export function TopBar({
           type="button"
           className="topbar__icon-btn"
           aria-label="Back"
-          disabled
+          onClick={onBack}
+          disabled={!onBack}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path

@@ -6,7 +6,7 @@ import random
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from supabase_client import get_supabase
+from api.supabase_client import get_supabase
 
 
 app = FastAPI(title="SwiftPark Demo API")

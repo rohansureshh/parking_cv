@@ -1,143 +1,69 @@
-# SwiftPark Codex Instructions
+## Phase 5: Brighton Ski Resort + YOLO Integration
 
-## Project summary
+We are starting Phase 5.
 
-SwiftPark is a parking availability demo app.
+Goal:
+Add a second facility called Brighton Ski Resort while preserving the completed OSU Parking Structure 1 flow.
 
-Core idea:
-SwiftPark uses existing parking garage camera footage and computer vision to detect whether parking spots are available, occupied, or unknown, then displays availability through a polished mobile-style web app.
+Current completed OSU flow:
+Splash → Home → Garage Overview → Spot Visualization / Navigation → Parked Confirmation
 
-## Current status
+Brighton requirements:
+- Brighton Ski Resort is a surface parking lot, not a parking garage.
+- Brighton has 3 zones.
+- Zone 1 should use YOLO/video-derived occupancy data from the new backend.
+- Zones 2 and 3 should use mock data for now.
+- Brighton should eventually use a surface-lot visualization, not ParkingGarage3D.
+- OSU should continue using the existing ParkingGarage3D garage visualization.
 
-Phase 3C is complete and merged into main.
+Important backend context:
+- Existing OSU demo API uses `/demo/occupancy` and `/demo/simulate-detection`.
+- New YOLO/camera backend exposes `/status` and `/ws`.
+- The new backend models mostly match the frontend Occupancy and Spot shapes.
+- The API endpoints are different, so `frontend/src/lib/api.ts` needs to become facility-aware.
 
-The current frontend includes:
-- SwiftPark mobile-style UI
-- 3D parking garage hero visualization
-- external GLB car models
-- floor selector
-- selected spot panel
-- Run Detection Simulation button
-- FastAPI backend integration
+Implementation direction:
+- Start with frontend facility-aware API/cache plumbing.
+- Do not merge or rewrite backend apps in the first step.
+- Use REST `/status` first for Brighton Zone 1.
+- Do not add WebSocket integration yet.
+- Keep OSU behavior unchanged.
+- Cache occupancy by facility slug, not one global cache.
+- Keep `Spot.level` as the grouping field.
+- For OSU, display `level` as Level.
+- For Brighton, display `level` as Zone.
 
-## Current stack
+Recommended first implementation:
+1. Add facility metadata.
+2. Update API functions to accept a facility slug.
+3. Update occupancy cache to cache by facility slug.
+4. Add Brighton normalizer that combines:
+   - Zone 1 from YOLO `/status`
+   - Zone 2 mock data
+   - Zone 3 mock data
+5. Keep existing OSU UI/flow unchanged during the foundation step.
 
-Frontend:
-- Vite
-- React
-- TypeScript
-- plain CSS
-- Three.js
+Do not touch unless explicitly asked:
+- `ParkingGarage3D`
+- `carModelLoader`
+- `cv/detector.py`
+- `run.py`
+- `calibrate.py`
+- backend camera loop
+- Supabase secrets
+- `.env`
 
-Backend:
-- FastAPI
-- Supabase demo database
+Do not add:
+- real maps
+- real GPS
+- auth
+- payments
+- cloud deployment
+- `@base44/sdk`
 
-## Backend endpoints
-
-Frontend should call FastAPI only.
-
-Local backend:
-http://127.0.0.1:8000
-
-Endpoints:
-- GET /health
-- POST /demo/seed
-- GET /demo/occupancy
-- POST /demo/simulate-detection
-
-Do not call Supabase directly from the frontend.
-Do not expose Supabase keys in the frontend.
-
-## Files/directories
-
-Frontend:
-- frontend/src/App.tsx
-- frontend/src/index.css
-- frontend/src/components/
-- frontend/src/components/parking/ParkingGarage3D.tsx
-- frontend/src/components/parking/carModelLoader.ts
-- frontend/public/models/cars-bundle/
-
-Backend:
-- api/
-
-Do not modify:
-- detector.py
-- run.py
-- calibrate.py
-- backend Supabase logic
-- .env
-
-unless explicitly asked.
-
-## Phase 4 goal
-
-Build the rest of the SwiftPark app flow around the existing hero screen.
-
-Phase 4 should add a demo flow inspired by the original SwiftPark mockup:
-1. Splash / loading screen
-2. Home / map-style garage discovery screen
-3. Garage overview/details screen
-4. Spot visualization screen
-5. Navigation-style screen
-6. Parked confirmation screen
-
-Important:
-- This is a demo app, not a production mobile app.
-- Use mock/static data where needed.
-- Preserve the existing 3D spot visualization screen.
-- Preserve FastAPI API integration.
-- Do not add real maps, real GPS, auth, payments, or cloud deployment yet.
-
-## UI style
-
-Use the original SwiftPark mockup as visual direction:
-- clean iPhone-style UI
-- blue-and-white SwiftPark branding
-- SwiftPark wordmark
-- tagline: "Stress less. Park better."
-- rounded cards
-- subtle shadows
-- polished mobile app feel
-- investor/demo-ready
-
-Status colors:
-- available = blue
-- occupied = red
-- unknown = gray
-- selected = bright blue
-
-## Guardrails
-
-Do not:
-- use @base44/sdk
-- add auth
-- add payments
-- add real maps or external map APIs
-- add real GPS
-- add cloud deployment
-- expose Supabase keys
-- rewrite the detector
-- break the current 3D visualization
-- commit generated files
-
-Do not commit:
-- .env
-- frontend/.env.local
-- frontend/node_modules/
-- frontend/dist/
-- frontend/.vite/
-- design-reference/
-- venv/
-- __pycache__/
-- *.pyc
-
-## Build and test commands
-
-Backend:
-
-```powershell
-.\venv\Scripts\Activate.ps1
-uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
-curl.exe -X POST http://127.0.0.1:8000/demo/seed
+Validation:
+- Ensure existing OSU flow still works.
+- Run frontend typecheck/build:
+  - `cd frontend`
+  - `npx tsc -b`
+  - `npx vite build`

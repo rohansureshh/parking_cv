@@ -2,16 +2,18 @@ interface FloorSelectorProps {
   levels: string[];
   activeLevel: string | null;
   onSelect: (level: string) => void;
+  sectionLabel?: "Level" | "Zone";
 }
 
 export function FloorSelector({
   levels,
   activeLevel,
   onSelect,
+  sectionLabel = "Level",
 }: FloorSelectorProps) {
   if (levels.length === 0) return null;
   return (
-    <div className="floor-seg" role="tablist" aria-label="Floor selector">
+    <div className="floor-seg" role="tablist" aria-label={`${sectionLabel} selector`}>
       {levels.map((level) => {
         const isActive = level === activeLevel;
         return (
@@ -24,10 +26,15 @@ export function FloorSelector({
             data-active={isActive ? "true" : undefined}
             onClick={() => onSelect(level)}
           >
-            Level {level}
+            {formatSectionLabel(level, sectionLabel)}
           </button>
         );
       })}
     </div>
   );
+}
+
+function formatSectionLabel(level: string, sectionLabel: "Level" | "Zone") {
+  if (sectionLabel === "Zone") return `Zone ${level.replace(/^Z/i, "")}`;
+  return `Level ${level}`;
 }

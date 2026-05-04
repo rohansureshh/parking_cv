@@ -5,12 +5,19 @@ interface ConfirmationModalProps {
   spot: Spot;
   garageName: string;
   onClose: () => void;
+  sectionLabel?: "Level" | "Zone";
+  /** When provided, the primary CTA reads "Start Navigation" and calls this
+   *  with the confirmed spot. When omitted, the primary CTA falls back to
+   *  the original "Done" behavior (just close the modal). */
+  onStartNavigation?: (spot: Spot) => void;
 }
 
 export function ConfirmationModal({
   spot,
   garageName,
   onClose,
+  sectionLabel = "Level",
+  onStartNavigation,
 }: ConfirmationModalProps) {
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -50,8 +57,10 @@ export function ConfirmationModal({
           </div>
           <div className="modal__divider" />
           <div className="modal__row">
-            <span className="modal__label">Level</span>
-            <span className="modal__value">{spot.level}</span>
+            <span className="modal__label">{sectionLabel}</span>
+            <span className="modal__value">
+              {formatSectionShortValue(spot.level, sectionLabel)}
+            </span>
           </div>
           <div className="modal__divider" />
           <div className="modal__row">
@@ -63,12 +72,19 @@ export function ConfirmationModal({
         <button
           type="button"
           className="modal__close"
-          onClick={onClose}
+          onClick={
+            onStartNavigation ? () => onStartNavigation(spot) : onClose
+          }
           autoFocus
         >
-          Done
+          {onStartNavigation ? "Start Navigation" : "Done"}
         </button>
       </div>
     </div>
   );
+}
+
+function formatSectionShortValue(level: string, sectionLabel: "Level" | "Zone") {
+  if (sectionLabel === "Zone") return level.toUpperCase();
+  return level;
 }

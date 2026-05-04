@@ -4,11 +4,15 @@ interface SpotPanelProps {
   spot: Spot;
   onConfirm: () => void;
   onClose: () => void;
+  sectionLabel?: "Level" | "Zone";
 }
 
-export function SpotPanel({ spot, onConfirm, onClose }: SpotPanelProps) {
-  const confidencePct = Math.round(spot.confidence * 100);
-
+export function SpotPanel({
+  spot,
+  onConfirm,
+  onClose,
+  sectionLabel = "Level",
+}: SpotPanelProps) {
   return (
     <aside className="sheet" aria-label="Selected spot details">
       <div className="sheet__grip" aria-hidden="true" />
@@ -18,7 +22,7 @@ export function SpotPanel({ spot, onConfirm, onClose }: SpotPanelProps) {
         <div className="sheet__copy">
           <div className="sheet__title">Spot {spot.label}</div>
           <div className="sheet__meta">
-            Level {spot.level} · Available · {confidencePct}% confidence
+            {formatSectionValue(spot.level, sectionLabel)} - Available
           </div>
         </div>
         <button
@@ -28,16 +32,17 @@ export function SpotPanel({ spot, onConfirm, onClose }: SpotPanelProps) {
           onClick={onClose}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path
+              d="M3 3l8 8M11 3l-8 8"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
           </svg>
         </button>
       </div>
 
-      <button
-        type="button"
-        className="sheet__cta"
-        onClick={onConfirm}
-      >
+      <button type="button" className="sheet__cta" onClick={onConfirm}>
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path
             d="M2.5 7.2L5.5 10L11.5 4"
@@ -51,4 +56,9 @@ export function SpotPanel({ spot, onConfirm, onClose }: SpotPanelProps) {
       </button>
     </aside>
   );
+}
+
+function formatSectionValue(level: string, sectionLabel: "Level" | "Zone") {
+  if (sectionLabel === "Zone") return `Zone ${level.replace(/^Z/i, "")}`;
+  return `Level ${level}`;
 }

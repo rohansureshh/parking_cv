@@ -1,27 +1,26 @@
 interface HeroOverlaysProps {
-  /** The currently visible floor (e.g. "L2"). */
+  /** The currently visible floor/zone (for example "2" or "Z1"). */
   activeLevel: string | null;
   /** Called when the user taps the recenter button. */
   onRecenter: () => void;
   /** Whether the gesture hint should be shown over the canvas. */
   showHint: boolean;
+  modeLabel?: string;
+  sectionLabel?: "Floor" | "Zone";
 }
 
 /**
  * Floating chrome above the 3D viewport.
  *
- *   - top-left  "3D" mode chip (decorative)
- *   - top-right "recenter" target button
- *   - bottom-right floor badge
- *   - top-center auto-dismissing gesture hint
- *
- * The wrapper is `pointer-events: none` and individual interactive
- * children opt back in, so canvas drag/tap still works.
+ * The wrapper is `pointer-events: none` and individual interactive children
+ * opt back in, so canvas drag/tap still works.
  */
 export function HeroOverlays({
   activeLevel,
   onRecenter,
   showHint,
+  modeLabel = "3D",
+  sectionLabel = "Floor",
 }: HeroOverlaysProps) {
   return (
     <div className="hero__overlays" aria-hidden={false}>
@@ -42,7 +41,7 @@ export function HeroOverlays({
             fill="none"
           />
         </svg>
-        <span>3D</span>
+        <span>{modeLabel}</span>
         <svg width="9" height="9" viewBox="0 0 12 12" aria-hidden="true">
           <path
             d="M3 4.5L6 7.5L9 4.5"
@@ -82,8 +81,10 @@ export function HeroOverlays({
 
       {activeLevel && (
         <div className="hero__floor-badge" aria-hidden="true">
-          <span className="hero__floor-eyebrow">FLOOR</span>
-          <span className="hero__floor-num">{activeLevel.replace(/^L/i, "")}</span>
+          <span className="hero__floor-eyebrow">{sectionLabel.toUpperCase()}</span>
+          <span className="hero__floor-num">
+            {activeLevel.replace(/^[LZ]/i, "")}
+          </span>
         </div>
       )}
 
@@ -95,7 +96,7 @@ export function HeroOverlays({
               fill="currentColor"
             />
           </svg>
-          Drag to rotate · Tap a blue spot
+          Drag to rotate - Tap a blue spot
         </div>
       )}
     </div>

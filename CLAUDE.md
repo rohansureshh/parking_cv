@@ -1,159 +1,67 @@
-# SwiftPark Claude Instructions
+## Phase 5: Brighton Ski Resort + YOLO Integration
 
-## Current branch
+We are starting Phase 5.
 
-We are now working on `ui-revamp-mobile-polish`.
+The completed Phase 4 OSU flow should be preserved:
+Splash → Home → Garage Overview → Spot Visualization / Navigation → Parked Confirmation
 
-Phase 3A already added and wired the Three.js parking visualization.
+New facility:
+Brighton Ski Resort
 
-Phase 3B goal:
-Redesign the frontend into a polished mobile-app-style SwiftPark UI.
+Brighton is different from OSU:
+- OSU = parking garage with levels
+- Brighton = surface parking lot with zones
+- Brighton has 3 zones
+- Zone 1 uses YOLO/video-derived occupancy data
+- Zones 2 and 3 use mock data for now
 
-The app should no longer feel like an admin dashboard. It should feel like a premium mobile parking app inspired by:
-- the original SwiftPark mobile mockup
-- the Base44 parking visualization design
+Important:
+- Preserve the OSU flow.
+- Preserve ParkingGarage3D for OSU.
+- Do not try to make ParkingGarage3D support Brighton unless explicitly asked.
+- Brighton should eventually have a separate surface-lot/zone visualization.
+- Use the current Occupancy/Spot shape as the normalized frontend contract.
 
-ParkingGarage3D should remain the hero visualization.
+Backend context:
+- OSU demo data comes from `/demo/occupancy`.
+- YOLO/camera data comes from `/status`.
+- WebSocket `/ws` exists but should not be used first.
+- Use REST first.
+- The YOLO data should be normalized into the same frontend Occupancy shape.
 
-## Project summary
+Phase 5 implementation principle:
+Start with the data layer, not the visual layer.
 
-SwiftPark uses existing parking garage camera footage and computer vision to detect which parking spots are available, occupied, or unknown.
-
-The frontend should show:
-- a polished mobile-app experience
-- SwiftPark branding
-- tagline: "Stress less. Park better."
-- garage availability
-- selected floor
-- 3D or high-quality 2.5D parking spot visualization
-- selected spot flow
-- detection simulation updates
-
-## Existing repo
-
-The original repo contains:
-- detector.py: YOLOv8-based parking detector
-- run.py: runs detector on videos
-- calibrate.py: creates spot polygons
-- test videos
+Recommended sequence:
+1. Facility metadata
+2. Facility-aware API functions
+3. Facility-aware occupancy cache
+4. Brighton normalizer: Zone 1 YOLO + Zone 2/3 mock
+5. Home screen shows both OSU and Brighton
+6. Garage Overview supports Level vs Zone labels
+7. Brighton surface-lot visualization
+8. Optional WebSocket live updates later
 
 Do not modify:
 - detector.py
 - run.py
 - calibrate.py
+- ParkingGarage3D
+- carModelLoader
+- backend camera loop
+- Supabase secrets
+- `.env`
 
-unless explicitly asked.
-
-## Backend
-
-The backend is FastAPI and Supabase-backed.
-
-Frontend should call FastAPI only.
-
-Do not call Supabase directly from the frontend.
-Do not expose Supabase keys in the frontend.
-
-Backend local URL:
-http://127.0.0.1:8000
-
-Current endpoints:
-- GET /health
-- POST /demo/seed
-- GET /demo/occupancy
-- POST /demo/simulate-detection
-
-## Supabase data shape
-
-Parking spots have:
-- id
-- label
-- level
-- status: "available", "occupied", or "unknown"
-- confidence
-
-## Base44 reference
-
-Use the Base44 export only as a design/component reference.
-
-Important reference:
-- design-reference/base44/src/components/parking/ParkingGarage3D.jsx
-
-Useful references:
-- SpotVisualization.jsx for mobile app layout
-- Splash.jsx for branding direction
-- ParkingConfirmation.jsx for confirmation styling
-- FloorAvailability.jsx for floor selector/list ideas
-
-Do not import the entire Base44 app blindly.
-
-Do not use:
-- @base44/sdk
-- Base44 auth
-- protected routes
-- maps
-- navigation
-- payments
-- cloud deployment
-
-## UI direction
-
-The new UI should feel like:
-- a real mobile parking app
-- iPhone-style
-- polished and investor-ready
-- clean blue-and-white SwiftPark theme
-- premium smart mobility product
-- not an admin dashboard
-
-Branding:
-- App name: SwiftPark
-- Tagline: "Stress less. Park better."
-- Primary color: blue
-- Available = blue
-- Occupied = red
-- Unknown = gray
-- Selected = bright blue glow/highlight
-
-## 3D visualization direction
-
-For this branch, a lightweight Three.js-based 3D parking visualization is allowed and encouraged.
-
-Goal:
-- use the Base44 ParkingGarage3D concept
-- adapt it to our backend spot data
-- show one selected floor at a time
-- support floor selection
-- occupied spots should show sleek simplified futuristic car models
-- car models should look refined, not like basic blocks
-- available spots should be clearly selectable
-- selected spots should glow/highlight
-
-If true 3D becomes unstable, fall back to a very polished 2.5D version, but do not revert to the old admin-style dashboard.
-
-## Scope
-
-Build:
-- mobile app shell
-- header/branding
-- garage summary
-- floor selector
-- 3D/premium parking visualization
-- selected spot panel
-- "Select Spot" confirmation
-- "Run Detection Simulation" button
-
-Do not build:
+Do not add:
 - real GPS
-- Google Maps / Mapbox
-- real navigation
+- real maps
 - auth
 - payments
 - cloud deployment
-- native mobile app
-- production reservation system
+- Base44 SDK
 
-## UX wording
-
-Use "Select Spot", not "Reserve Spot".
-
-Reservations imply a transactional feature we have not built yet.
+When planning, explicitly mention:
+- how OSU behavior stays unchanged
+- how Brighton Zone 1 YOLO data is normalized
+- how Zones 2 and 3 mock data are merged
+- how Level vs Zone display labels are handled
