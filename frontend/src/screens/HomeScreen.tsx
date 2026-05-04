@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { DEMO_FALLBACK, useOccupancy } from "../lib/occupancyCache";
 import {
   BRIGHTON_FACILITY_SLUG,
@@ -19,6 +20,10 @@ interface MockMarker {
   count: number;
   top: string;
   left: string;
+  /** When set, tapping the pin promotes that facility to active and the
+   *  bottom card swaps to its content. Decorative pins (busy / full)
+   *  leave this undefined and stay non-interactive. */
+  facility?: FacilitySlug;
 }
 
 /**
@@ -39,6 +44,12 @@ interface MockMarker {
  * looks complete.
  */
 export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
+  // Map-style selection: only one facility's card is visible at a time,
+  // tied to the currently active marker. Default to OSU so first paint
+  // matches the previous OSU-first behavior.
+  const [activeFacility, setActiveFacility] =
+    useState<FacilitySlug>(OSU_FACILITY_SLUG);
+
   const { occupancy, ready } = useOccupancy(OSU_FACILITY_SLUG);
   const { occupancy: brightonOccupancy, ready: brightonReady } =
     useOccupancy(BRIGHTON_FACILITY_SLUG);
@@ -51,30 +62,29 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
   const brightonAvailable = brightonOccupancy?.available ?? 81;
   const brightonCapacity = brightonOccupancy?.capacity ?? 180;
   const brightonStatus = brightonOccupancy?.facility_status ?? "open";
+  const brightonMarkerStatus = toMarkerStatus(brightonStatus);
 
-  // Hard-coded busy / full pins always render. The primary blue pin is
-  // gated on `ready` so its count never flashes from a fallback to the
-  // real value during the initial fetch.
+  // Both facility pins are always rendered so each can be tapped to
+  // promote that facility to the active card. Two non-facility pins
+  // (busy / full) remain decorative.
   const markers: MockMarker[] = [
     { id: "busy", status: "busy", count: 12, top: "26%", left: "22%" },
     { id: "full", status: "full", count: 2, top: "23%", left: "73%" },
-    ...(ready
-      ? [
-          {
-            id: "primary",
-            status: "available" as MarkerStatus,
-            count: liveAvailable,
-            top: "50%",
-            left: "32%",
-          },
-        ]
-      : []),
+    {
+      id: "osu",
+      status: "available",
+      count: liveAvailable,
+      top: "50%",
+      left: "32%",
+      facility: OSU_FACILITY_SLUG,
+    },
     {
       id: "brighton",
-      status: toMarkerStatus(brightonStatus),
+      status: brightonMarkerStatus,
       count: brightonAvailable,
       top: "39%",
       left: "58%",
+      facility: BRIGHTON_FACILITY_SLUG,
     },
   ];
 
@@ -82,9 +92,16 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
     <div className="home">
       <FakeMap />
 
-      <div className="home__markers" aria-hidden="true">
+      <div className="home__markers">
         {markers.map((m) => (
-          <PinMarker key={m.id} {...m} />
+          <PinMarker
+            key={m.id}
+            {...m}
+            active={m.facility !== undefined && m.facility === activeFacility}
+            onClick={
+              m.facility ? () => setActiveFacility(m.facility!) : undefined
+            }
+          />
         ))}
         <UserDot top="48%" left="64%" />
       </div>
@@ -115,6 +132,51 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
         <LocateIcon />
       </button>
 
+      {/* Facility selector — small floating segmented control that mirrors
+          the active marker. Tapping a chip OR the corresponding pin both
+          set the active facility and swap the bottom card. */}
+      <div
+        className="home__facility-chips"
+        role="tablist"
+        aria-label="Choose facility"
+      >
+        <button
+          type="button"
+          role="tab"
+          className="home__facility-chip"
+          aria-selected={activeFacility === OSU_FACILITY_SLUG}
+          data-active={activeFacility === OSU_FACILITY_SLUG ? "true" : "false"}
+          onClick={() => setActiveFacility(OSU_FACILITY_SLUG)}
+        >
+          <span
+            className="home__facility-chip-dot"
+            data-status="available"
+            aria-hidden="true"
+          />
+          OSU
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className="home__facility-chip"
+          aria-selected={activeFacility === BRIGHTON_FACILITY_SLUG}
+          data-active={
+            activeFacility === BRIGHTON_FACILITY_SLUG ? "true" : "false"
+          }
+          onClick={() => setActiveFacility(BRIGHTON_FACILITY_SLUG)}
+        >
+          <span
+            className="home__facility-chip-dot"
+            data-status={brightonMarkerStatus}
+            aria-hidden="true"
+          />
+          Brighton
+        </button>
+      </div>
+
+      {/* Single active facility card. Both variants anchor to the same
+          bottom slot; only one renders at a time so they never stack. */}
+      {activeFacility === OSU_FACILITY_SLUG ? (
       <article className="home__card home__card--osu">
         {/* Header — title / meta / rating in the left column, thumbnail
             on the right. Moving the rating INTO this column (instead of
@@ -192,7 +254,7 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
           <ChevronRightIcon />
         </button>
       </article>
-
+      ) : (
       <article className="home__card home__card--brighton">
         <div className="home__card-header">
           <div className="home__card-info">
@@ -253,6 +315,7 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
           <ChevronRightIcon />
         </button>
       </article>
+      )}
 
       <nav className="home__tabbar" aria-label="Primary">
         <TabButton label="Map" active>
@@ -474,15 +537,30 @@ interface PinMarkerProps {
   count: number;
   top: string;
   left: string;
+  /** Set on facility-bound pins. Active pin gets a brand ring and lifted
+   *  scale to clearly belong with the bottom card. */
+  active?: boolean;
+  /** When provided, the pin renders as a real button so taps switch the
+   *  active facility. Decorative pins omit it and stay non-interactive. */
+  onClick?: () => void;
+  facility?: FacilitySlug;
 }
 
-function PinMarker({ status, count, top, left }: PinMarkerProps) {
-  return (
-    <div
-      className="home__pin"
-      data-status={status}
-      style={{ top, left }}
-    >
+function PinMarker({
+  status,
+  count,
+  top,
+  left,
+  active,
+  onClick,
+  facility,
+}: PinMarkerProps) {
+  const dataAttrs = {
+    "data-status": status,
+    "data-active": active ? "true" : undefined,
+  };
+  const inner = (
+    <>
       <span className="home__pin-ring" />
       <svg className="home__pin-svg" viewBox="0 0 48 56" aria-hidden="true">
         <path
@@ -502,6 +580,36 @@ function PinMarker({ status, count, top, left }: PinMarkerProps) {
           {count}
         </text>
       </svg>
+    </>
+  );
+
+  if (onClick) {
+    const label = facility
+      ? `Select ${facility === OSU_FACILITY_SLUG ? "OSU" : "Brighton"} parking`
+      : undefined;
+    return (
+      <button
+        type="button"
+        className="home__pin"
+        style={{ top, left }}
+        onClick={onClick}
+        aria-label={label}
+        aria-pressed={active}
+        {...dataAttrs}
+      >
+        {inner}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className="home__pin"
+      style={{ top, left }}
+      aria-hidden="true"
+      {...dataAttrs}
+    >
+      {inner}
     </div>
   );
 }
