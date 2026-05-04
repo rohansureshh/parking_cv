@@ -302,7 +302,7 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
         </div>
 
         <div className="home__card-features">
-          <span className="home__card-feature">Zones 2-3 estimated</span>
+          <span className="home__card-feature">3 zones</span>
           <span className="home__card-feature">Surface lot</span>
         </div>
 

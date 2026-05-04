@@ -49,13 +49,13 @@ const FALLBACK = {
 };
 
 const BRIGHTON_FALLBACK = {
-  available: 81,
-  capacity: 180,
+  available: 39,
+  capacity: 100,
   facilityStatus: "open" as FacilityStatus,
   levels: [
     { level: "Z1", available: 8, total: 50, sourceLabel: "Live camera" },
-    { level: "Z2", available: 37, total: 72, sourceLabel: "Estimated" },
-    { level: "Z3", available: 36, total: 58, sourceLabel: "Estimated" },
+    { level: "Z2", available: 18, total: 30 },
+    { level: "Z3", available: 13, total: 20 },
   ] satisfies LevelInfo[],
 };
 
@@ -375,7 +375,11 @@ function LevelRow({
 
 function getSectionSourceLabel(level: string, isBrighton: boolean): string | undefined {
   if (!isBrighton) return undefined;
-  return level.toUpperCase() === "Z1" ? "Live camera" : "Estimated";
+  // Only Zone 1 has a meaningful source annotation (live YOLO camera).
+  // Zones 2/3 are static mock data — leave the label undefined so the
+  // overview row renders cleanly with no demo-undermining "Estimated"
+  // tag next to the count.
+  return level.toUpperCase() === "Z1" ? "Live camera" : undefined;
 }
 
 function formatSectionBadge(

@@ -11,12 +11,8 @@ import { TopBar } from "../components/TopBar";
 import { ApiError, fetchOccupancy, simulateDetection } from "../lib/api";
 import {
   BRIGHTON_ZONE1_LABELS,
-  BRIGHTON_ZONE1_MAPPED_SPOT_COUNT,
   buildBrightonLotLayout,
   formatBrightonZoneName,
-  getBrightonMockCapacity,
-  getBrightonZoneOneCapacity,
-  getBrightonZoneSourceLabel,
   type BrightonZone,
 } from "../lib/brightonLotLayout";
 import { setCachedOccupancy } from "../lib/occupancyCache";
@@ -144,13 +140,6 @@ export function BrightonLotVisualizationScreen({
     [visualSpots],
   );
 
-  const zoneCapacity = getZoneCapacity(activeZone, occupancy);
-  const zoneSource = getBrightonZoneSourceLabel(activeZone);
-  const mappedCopy =
-    activeZone === "Z1"
-      ? `${BRIGHTON_ZONE1_MAPPED_SPOT_COUNT} mapped spaces - ${zoneCapacity} total capacity`
-      : `${zoneCapacity} estimated spaces`;
-
   const handleConfirmSpot = useCallback(() => {
     if (!selectedSpot) return;
     setConfirmedSpot(selectedSpot);
@@ -184,11 +173,6 @@ export function BrightonLotVisualizationScreen({
             onSelect={(zone) => setActiveZone(zone as BrightonZone)}
             sectionLabel="Zone"
           />
-
-          <div className="brighton-zone-note">
-            <span>{formatBrightonZoneName(activeZone)} - {zoneSource}</span>
-            <span>{mappedCopy}</span>
-          </div>
 
           <div className="hero hero--surface-lot">
             <div className="hero__canvas">
@@ -312,16 +296,6 @@ function SnapshotRefreshButton({
       <span>{refreshing ? "Refreshing camera..." : "Refresh Camera Snapshot"}</span>
     </button>
   );
-}
-
-function getZoneCapacity(
-  activeZone: BrightonZone,
-  occupancy: Occupancy | null,
-): number {
-  if (activeZone === "Z1") {
-    return getBrightonZoneOneCapacity(occupancy?.capacity);
-  }
-  return getBrightonMockCapacity(activeZone);
 }
 
 function LoadingSkeleton() {

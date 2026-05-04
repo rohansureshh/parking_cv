@@ -84,7 +84,7 @@ const ROW_GAP_THRESHOLD_PX = 45;
 // Standardized surface-lot stall — sized to match the OSU 3D garage so
 // the GLB cars plug in at the same scale as `ParkingGarage3D`.
 const SURFACE_SPOT_W = 2.4;
-const SURFACE_SPOT_D = 4.8;
+export const SURFACE_SPOT_D = 4.8;
 const SURFACE_SPOT_GAP_X = 0.06;
 // Two row-to-row spacings: a hairline back-to-back gap (paired rows
 // share a back wall, no drivable lane between them) and a full
@@ -119,10 +119,6 @@ export function buildBrightonLotLayout(
 ): BrightonLotSpace[] {
   if (zone === "Z1") return buildZoneOneLayout(spots);
   return buildGeneratedZoneLayout(zone, spots.length);
-}
-
-export function getBrightonZoneSourceLabel(zone: BrightonZone): string {
-  return zone === "Z1" ? "Live camera" : "Estimated";
 }
 
 export function formatBrightonZoneName(zone: BrightonZone): string {

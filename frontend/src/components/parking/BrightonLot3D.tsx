@@ -8,6 +8,8 @@ import {
 } from "./carModelLoader";
 import {
   SURFACE_AISLE_DETECT_THRESHOLD,
+  SURFACE_AISLE_GAP,
+  SURFACE_SPOT_D,
   type BrightonLotSpace,
 } from "../../lib/brightonLotLayout";
 import type { Spot, SpotStatus } from "../../lib/types";
@@ -355,10 +357,14 @@ function buildSurface(
   ground.receiveShadow = true;
   group.add(ground);
 
-  // Lane surfaces + center dashes + directional arrows between every
-  // pair of adjacent rows. Adapted from the OSU ParkingGarage3D pattern
-  // so the two screens read as the same SwiftPark visual language.
-  if (rowZs.length >= 2) {
+  // Lane surfaces + center dashes + directional arrows. The lane Z
+  // positions include any inner aisles between row pairs PLUS a front
+  // perimeter lane (camera side, in front of the first row) and — only
+  // when the lot has no inner aisle (e.g. Zone 3) — a back perimeter
+  // lane behind the last row. This makes Brighton read as a real
+  // drivable surface lot regardless of zone size.
+  const laneZs = computeLaneZs(rowZs);
+  if (laneZs.length > 0) {
     const laneSurfaceMat = new THREE.MeshStandardMaterial({
       color: 0xd3dce7,
       roughness: 0.86,
@@ -380,15 +386,7 @@ function buildSurface(
     const arrowSpacing = 5.0;
     const numArrows = Math.max(2, Math.floor((bounds.width - 4) / arrowSpacing));
 
-    for (let i = 0; i < rowZs.length - 1; i++) {
-      const gap = Math.abs(rowZs[i + 1] - rowZs[i]);
-      // Skip back-to-back row pairs — those share a back wall and don't
-      // have a drivable lane between them, so painting one would draw
-      // a stripe across stall edges.
-      if (gap < SURFACE_AISLE_DETECT_THRESHOLD) continue;
-
-      const laneZ = (rowZs[i] + rowZs[i + 1]) / 2;
-
+    laneZs.forEach((laneZ, laneIdx) => {
       const lane = new THREE.Mesh(
         new THREE.PlaneGeometry(bounds.width, laneWidth),
         laneSurfaceMat,
@@ -414,7 +412,7 @@ function buildSurface(
 
       // Direction arrows alternate per aisle for a believable one-way
       // circulation pattern, same convention OSU uses.
-      const flowSign = i % 2 === 0 ? 1 : -1;
+      const flowSign = laneIdx % 2 === 0 ? 1 : -1;
       for (let k = 0; k < numArrows; k++) {
         const ax =
           -bounds.width / 2 + 2 + k * arrowSpacing + arrowSpacing / 2;
@@ -439,7 +437,7 @@ function buildSurface(
         arrow.position.set(ax, 0.012, laneZ);
         group.add(arrow);
       }
-    }
+    });
   }
 
   // Snow banks at the long edges — keeps Brighton's mountain-resort feel
@@ -667,14 +665,60 @@ function collectRowZs(spaces: readonly BrightonLotSpace[]): number[] {
   return result;
 }
 
+/**
+ * Compute the world-Z positions where painted drive lanes should be
+ * rendered. Lane sources, in order:
+ *   - Inner aisles: every row-to-row gap that is wider than the
+ *     back-to-back threshold. Back-to-back row pairs are skipped — they
+ *     share a wall and shouldn't have a stripe drawn through it.
+ *   - Front perimeter lane: always added, in front of the front row
+ *     (largest Z, closest to the camera) so cars have an obvious
+ *     "drive in" lane regardless of zone shape.
+ *   - Back perimeter lane: only added when no inner aisle exists
+ *     (single row, or a single back-to-back pair like Zone 3). Without
+ *     an inner aisle the lot would otherwise read as a single block
+ *     of stalls with no exit path.
+ */
+function computeLaneZs(rowZs: number[]): number[] {
+  if (rowZs.length === 0) return [];
+
+  // collectRowZs returns ascending; pull explicit min/max for clarity.
+  const frontRowZ = Math.max(...rowZs); // closest to camera
+  const backRowZ = Math.min(...rowZs); // farthest from camera
+  const perimeterOffset = SURFACE_SPOT_D / 2 + SURFACE_AISLE_GAP / 2;
+
+  const innerLanes: number[] = [];
+  for (let i = 0; i < rowZs.length - 1; i++) {
+    const gap = Math.abs(rowZs[i + 1] - rowZs[i]);
+    if (gap >= SURFACE_AISLE_DETECT_THRESHOLD) {
+      innerLanes.push((rowZs[i] + rowZs[i + 1]) / 2);
+    }
+  }
+
+  const lanes: number[] = [...innerLanes];
+  // Always paint a front (camera-side) drive lane.
+  lanes.push(frontRowZ + perimeterOffset);
+  // Add a back drive lane only when the lot has no inner aisle, so
+  // back-to-back-only zones (Z3) still have two clear drive lanes.
+  if (innerLanes.length === 0) {
+    lanes.push(backRowZ - perimeterOffset);
+  }
+
+  return lanes;
+}
+
 function computeBounds(spaces: readonly BrightonLotSpace[]): LotBounds {
   if (spaces.length === 0) return { width: 24, depth: 16, radius: 32 };
   const minX = Math.min(...spaces.map((space) => space.x - space.width / 2));
   const maxX = Math.max(...spaces.map((space) => space.x + space.width / 2));
   const minZ = Math.min(...spaces.map((space) => space.z - space.depth / 2));
   const maxZ = Math.max(...spaces.map((space) => space.z + space.depth / 2));
+  // Reserve enough Z padding to fit a front and (potentially) a back
+  // perimeter drive lane, plus the snow banks beyond them. SURFACE_AISLE_GAP
+  // covers the lane width and some breathing room on each side.
+  const lanePadding = SURFACE_AISLE_GAP * 2;
   const width = Math.max(20, maxX - minX + 4);
-  const depth = Math.max(14, maxZ - minZ + 5);
+  const depth = Math.max(14, maxZ - minZ + 5 + lanePadding);
   const radius = Math.max(28, Math.max(width, depth) * 0.78);
   return { width, depth, radius };
 }

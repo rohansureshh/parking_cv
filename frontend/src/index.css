@@ -442,44 +442,6 @@ button:disabled {
   letter-spacing: -0.02em;
 }
 
-.brighton-zone-note {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  min-height: 44px;
-  padding: 10px 14px;
-  border-radius: var(--radius-control);
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  box-shadow: var(--shadow-soft);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.005em;
-}
-
-.brighton-zone-note span:first-child {
-  color: var(--ink-soft);
-  font-weight: 800;
-}
-
-.brighton-zone-note span:last-child {
-  text-align: right;
-}
-
-@media (max-width: 380px) {
-  .brighton-zone-note {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .brighton-zone-note span:last-child {
-    text-align: left;
-  }
-}
-
 .hero__hint {
   position: absolute;
   top: 14px;

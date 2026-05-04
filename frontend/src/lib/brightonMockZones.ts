@@ -9,11 +9,11 @@ interface BrightonMockZone {
   confidence: number;
 }
 
-// Brighton Zone 2 / Zone 3 are estimated/mock for the demo. The
-// authoritative source is the backend `/demo/brighton-mock-zones`
-// endpoint (see api/main.py) — this constant is the offline fallback
-// used by `api.ts` when that endpoint is unreachable, so the visible
-// demo never breaks. Capacities mirror the backend numbers exactly.
+// Brighton Zone 2 / Zone 3 mock occupancy. The authoritative source is
+// the backend `/demo/brighton-mock-zones` endpoint (see api/main.py).
+// This constant is the offline fallback used by `api.ts` when that
+// endpoint is unreachable, so the visible demo never breaks. Capacities
+// mirror the backend numbers exactly.
 export const BRIGHTON_MOCK_ZONES: readonly BrightonMockZone[] = [
   {
     level: "Z2",
