@@ -12,6 +12,7 @@ import ParkingGarage3D from "../components/parking/ParkingGarage3D";
 
 import { ApiError, fetchOccupancy, simulateDetection } from "../lib/api";
 import { setCachedOccupancy } from "../lib/occupancyCache";
+import { OSU_FACILITY_SLUG } from "../lib/facilities";
 import type { Occupancy, Spot } from "../lib/types";
 
 type LoadState =
@@ -45,7 +46,7 @@ export function SpotVisualizationScreen({
     // Keep the shared cache in sync so subsequent screens (Navigation,
     // Parked, return-trip Home/Overview) see fresh data after a refresh
     // or simulate-detection call.
-    setCachedOccupancy(occupancy);
+    setCachedOccupancy(OSU_FACILITY_SLUG, occupancy);
     setSelectedSpotId((current) => {
       if (!current) return current;
       const spot = occupancy.spots.find((s) => s.id === current);
@@ -56,7 +57,7 @@ export function SpotVisualizationScreen({
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const data = await fetchOccupancy();
+      const data = await fetchOccupancy(OSU_FACILITY_SLUG);
       applyOccupancy(data);
     } catch (err) {
       const apiErr =
@@ -74,7 +75,7 @@ export function SpotVisualizationScreen({
   const handleSimulate = useCallback(async () => {
     setSimulating(true);
     try {
-      const data = await simulateDetection();
+      const data = await simulateDetection(OSU_FACILITY_SLUG);
       applyOccupancy(data);
     } catch (err) {
       const apiErr =

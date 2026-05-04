@@ -6,11 +6,17 @@ import { GarageOverviewScreen } from "./screens/GarageOverviewScreen";
 import { NavigationScreen } from "./screens/NavigationScreen";
 import { ParkedConfirmationScreen } from "./screens/ParkedConfirmationScreen";
 import { SpotVisualizationScreen } from "./screens/SpotVisualizationScreen";
+import { BrightonLotVisualizationScreen } from "./screens/BrightonLotVisualizationScreen";
 import { INITIAL_SCREEN, type Screen } from "./lib/navigation";
 import {
   prefetchOccupancy,
   type SelectedSpot,
 } from "./lib/occupancyCache";
+import {
+  BRIGHTON_FACILITY_SLUG,
+  OSU_FACILITY_SLUG,
+  type FacilitySlug,
+} from "./lib/facilities";
 import type { Spot } from "./lib/types";
 
 /**
@@ -34,12 +40,14 @@ import type { Spot } from "./lib/types";
  */
 function App() {
   const [screen, setScreen] = useState<Screen>(INITIAL_SCREEN);
+  const [selectedFacility, setSelectedFacility] =
+    useState<FacilitySlug>(OSU_FACILITY_SLUG);
   const [selectedSpot, setSelectedSpot] = useState<SelectedSpot | null>(null);
 
   // Warm the shared occupancy cache during splash so the first real screen
   // renders with data on its first paint instead of flashing skeletons.
   useEffect(() => {
-    prefetchOccupancy();
+    prefetchOccupancy(OSU_FACILITY_SLUG);
   }, []);
 
   const goHome = useCallback(() => {
@@ -47,7 +55,8 @@ function App() {
     setScreen({ kind: "home" });
   }, []);
 
-  const goOverview = useCallback(() => {
+  const goOverview = useCallback((facilitySlug: FacilitySlug) => {
+    setSelectedFacility(facilitySlug);
     setSelectedSpot(null);
     setScreen({ kind: "garage_overview" });
   }, []);
@@ -86,21 +95,30 @@ function App() {
       {screen.kind === "garage_overview" && (
         <GarageOverviewScreen
           onBack={goHome}
+          facilitySlug={selectedFacility}
           onViewSpotMap={goSpotViz}
           onNavigate={goNavigation}
         />
       )}
 
       {screen.kind === "spot_visualization" && (
-        <SpotVisualizationScreen
-          onBack={goOverview}
-          onStartNavigation={goNavigationWithSpot}
-        />
+        selectedFacility === BRIGHTON_FACILITY_SLUG ? (
+          <BrightonLotVisualizationScreen
+            onBack={() => goOverview(BRIGHTON_FACILITY_SLUG)}
+            onStartNavigation={goNavigationWithSpot}
+          />
+        ) : (
+          <SpotVisualizationScreen
+            onBack={() => goOverview(OSU_FACILITY_SLUG)}
+            onStartNavigation={goNavigationWithSpot}
+          />
+        )
       )}
 
       {screen.kind === "navigation" && (
         <NavigationScreen
-          onBack={goOverview}
+          facilitySlug={selectedFacility}
+          onBack={() => goOverview(selectedFacility)}
           onCancel={goHome}
           onParked={goParked}
           preselectedSpot={selectedSpot ?? undefined}
@@ -109,6 +127,7 @@ function App() {
 
       {screen.kind === "parked" && (
         <ParkedConfirmationScreen
+          facilitySlug={selectedFacility}
           onBackToMap={goHome}
           preselectedSpot={selectedSpot ?? undefined}
         />

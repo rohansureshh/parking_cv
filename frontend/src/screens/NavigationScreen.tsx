@@ -5,8 +5,15 @@ import {
   type SelectedSpot,
   useOccupancy,
 } from "../lib/occupancyCache";
+import {
+  getFacility,
+  OSU_FACILITY_SLUG,
+  type FacilitySectionLabel,
+  type FacilitySlug,
+} from "../lib/facilities";
 
 interface NavigationScreenProps {
+  facilitySlug: FacilitySlug;
   onBack: () => void;
   onCancel: () => void;
   onParked: () => void;
@@ -41,22 +48,31 @@ const FALLBACK = {
  * to FALLBACK so the screen always looks complete.
  */
 export function NavigationScreen({
+  facilitySlug,
   onBack,
   onCancel,
   onParked,
   preselectedSpot,
 }: NavigationScreenProps) {
-  const { occupancy, ready } = useOccupancy();
+  const facility = getFacility(facilitySlug);
+  const { occupancy, ready } = useOccupancy(facilitySlug);
+  const sectionLabel = facility.sectionLabel;
 
-  const garageName = occupancy?.lot_name ?? FALLBACK.garageName;
+  const garageName =
+    occupancy?.lot_name ??
+    (facilitySlug === OSU_FACILITY_SLUG ? FALLBACK.garageName : facility.name);
+  const fallbackSpot =
+    facilitySlug === OSU_FACILITY_SLUG
+      ? FALLBACK.spot
+      : ({ label: "Z1-001", level: "Z1" } satisfies TargetSpot);
 
   const targetSpot: TargetSpot = useMemo(() => {
     if (preselectedSpot) return preselectedSpot;
-    if (!occupancy) return FALLBACK.spot;
+    if (!occupancy) return fallbackSpot;
     const open = occupancy.spots.find((s) => s.status === "available");
-    if (!open) return FALLBACK.spot;
+    if (!open) return fallbackSpot;
     return { label: open.label, level: open.level };
-  }, [preselectedSpot, occupancy]);
+  }, [preselectedSpot, occupancy, fallbackSpot]);
 
   const arrivalTime = useMemo(() => {
     const future = new Date(Date.now() + 3 * 60 * 1000);
@@ -117,10 +133,12 @@ export function NavigationScreen({
         <div className="navigation__then">
           <ArrowUpIcon />
           {ready ? (
-            <span>Then continue to Level {targetSpot.level}</span>
+            <span>
+              Then continue to {formatSectionValue(targetSpot.level, sectionLabel)}
+            </span>
           ) : (
             <span>
-              Then continue to Level{" "}
+              Then continue to {sectionLabel}{" "}
               <span
                 className="demo-skel"
                 style={{ width: 14 }}
@@ -182,10 +200,10 @@ export function NavigationScreen({
             </div>
             <div className="navigation__destination-spot-level">
               {ready ? (
-                <>Level {targetSpot.level}</>
+                <>{formatSectionValue(targetSpot.level, sectionLabel)}</>
               ) : (
                 <span>
-                  Level{" "}
+                  {sectionLabel}{" "}
                   <span
                     className="demo-skel"
                     style={{ width: 12 }}
@@ -405,6 +423,14 @@ function NavMap() {
 /* ─────────────────────────────────────────────────────────────────
    Inline icons
    ───────────────────────────────────────────────────────────────── */
+
+function formatSectionValue(
+  level: string,
+  sectionLabel: FacilitySectionLabel,
+): string {
+  if (sectionLabel === "Zone") return `Zone ${level.replace(/^Z/i, "")}`;
+  return `Level ${level}`;
+}
 
 function ArrowLeftIcon() {
   return (

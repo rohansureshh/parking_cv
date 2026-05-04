@@ -1,7 +1,15 @@
+import { useState } from "react";
 import { DEMO_FALLBACK, useOccupancy } from "../lib/occupancyCache";
+import {
+  BRIGHTON_FACILITY_SLUG,
+  getFacility,
+  OSU_FACILITY_SLUG,
+  type FacilitySlug,
+} from "../lib/facilities";
+import type { FacilityStatus } from "../lib/types";
 
 interface HomeScreenProps {
-  onSelectGarage: () => void;
+  onSelectGarage: (facilitySlug: FacilitySlug) => void;
 }
 
 type MarkerStatus = "available" | "busy" | "full";
@@ -12,6 +20,10 @@ interface MockMarker {
   count: number;
   top: string;
   left: string;
+  /** When set, tapping the pin promotes that facility to active and the
+   *  bottom card swaps to its content. Decorative pins (busy / full)
+   *  leave this undefined and stay non-interactive. */
+  facility?: FacilitySlug;
 }
 
 /**
@@ -32,39 +44,64 @@ interface MockMarker {
  * looks complete.
  */
 export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
-  const { occupancy, ready } = useOccupancy();
+  // Map-style selection: only one facility's card is visible at a time,
+  // tied to the currently active marker. Default to OSU so first paint
+  // matches the previous OSU-first behavior.
+  const [activeFacility, setActiveFacility] =
+    useState<FacilitySlug>(OSU_FACILITY_SLUG);
+
+  const { occupancy, ready } = useOccupancy(OSU_FACILITY_SLUG);
+  const { occupancy: brightonOccupancy, ready: brightonReady } =
+    useOccupancy(BRIGHTON_FACILITY_SLUG);
 
   const liveAvailable = occupancy?.available ?? 42;
   const liveCapacity = occupancy?.capacity ?? 120;
   const garageName = occupancy?.lot_name ?? DEMO_FALLBACK.garageName;
   const garageAddress = occupancy?.location ?? DEMO_FALLBACK.garageAddress;
+  const brightonFacility = getFacility(BRIGHTON_FACILITY_SLUG);
+  const brightonAvailable = brightonOccupancy?.available ?? 81;
+  const brightonCapacity = brightonOccupancy?.capacity ?? 180;
+  const brightonStatus = brightonOccupancy?.facility_status ?? "open";
+  const brightonMarkerStatus = toMarkerStatus(brightonStatus);
 
-  // Hard-coded busy / full pins always render. The primary blue pin is
-  // gated on `ready` so its count never flashes from a fallback to the
-  // real value during the initial fetch.
+  // Both facility pins are always rendered so each can be tapped to
+  // promote that facility to the active card. Two non-facility pins
+  // (busy / full) remain decorative.
   const markers: MockMarker[] = [
     { id: "busy", status: "busy", count: 12, top: "26%", left: "22%" },
     { id: "full", status: "full", count: 2, top: "23%", left: "73%" },
-    ...(ready
-      ? [
-          {
-            id: "primary",
-            status: "available" as MarkerStatus,
-            count: liveAvailable,
-            top: "50%",
-            left: "32%",
-          },
-        ]
-      : []),
+    {
+      id: "osu",
+      status: "available",
+      count: liveAvailable,
+      top: "50%",
+      left: "32%",
+      facility: OSU_FACILITY_SLUG,
+    },
+    {
+      id: "brighton",
+      status: brightonMarkerStatus,
+      count: brightonAvailable,
+      top: "39%",
+      left: "58%",
+      facility: BRIGHTON_FACILITY_SLUG,
+    },
   ];
 
   return (
     <div className="home">
       <FakeMap />
 
-      <div className="home__markers" aria-hidden="true">
+      <div className="home__markers">
         {markers.map((m) => (
-          <PinMarker key={m.id} {...m} />
+          <PinMarker
+            key={m.id}
+            {...m}
+            active={m.facility !== undefined && m.facility === activeFacility}
+            onClick={
+              m.facility ? () => setActiveFacility(m.facility!) : undefined
+            }
+          />
         ))}
         <UserDot top="48%" left="64%" />
       </div>
@@ -95,7 +132,52 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
         <LocateIcon />
       </button>
 
-      <article className="home__card">
+      {/* Facility selector — small floating segmented control that mirrors
+          the active marker. Tapping a chip OR the corresponding pin both
+          set the active facility and swap the bottom card. */}
+      <div
+        className="home__facility-chips"
+        role="tablist"
+        aria-label="Choose facility"
+      >
+        <button
+          type="button"
+          role="tab"
+          className="home__facility-chip"
+          aria-selected={activeFacility === OSU_FACILITY_SLUG}
+          data-active={activeFacility === OSU_FACILITY_SLUG ? "true" : "false"}
+          onClick={() => setActiveFacility(OSU_FACILITY_SLUG)}
+        >
+          <span
+            className="home__facility-chip-dot"
+            data-status="available"
+            aria-hidden="true"
+          />
+          OSU
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className="home__facility-chip"
+          aria-selected={activeFacility === BRIGHTON_FACILITY_SLUG}
+          data-active={
+            activeFacility === BRIGHTON_FACILITY_SLUG ? "true" : "false"
+          }
+          onClick={() => setActiveFacility(BRIGHTON_FACILITY_SLUG)}
+        >
+          <span
+            className="home__facility-chip-dot"
+            data-status={brightonMarkerStatus}
+            aria-hidden="true"
+          />
+          Brighton
+        </button>
+      </div>
+
+      {/* Single active facility card. Both variants anchor to the same
+          bottom slot; only one renders at a time so they never stack. */}
+      {activeFacility === OSU_FACILITY_SLUG ? (
+      <article className="home__card home__card--osu">
         {/* Header — title / meta / rating in the left column, thumbnail
             on the right. Moving the rating INTO this column (instead of
             below it) eliminates the awkward empty band that used to sit
@@ -166,12 +248,87 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
         <button
           type="button"
           className="home__card-cta"
-          onClick={onSelectGarage}
+          onClick={() => onSelectGarage(OSU_FACILITY_SLUG)}
         >
           View Details
           <ChevronRightIcon />
         </button>
       </article>
+      ) : (
+      <article className="home__card home__card--brighton">
+        {/* Same structural rhythm as the OSU card: header (info + thumb)
+            → divider → live availability → address → CTA. Brighton-only
+            content lives inside this shell (camera/live indicator in
+            place of OSU's review count, surface-lot thumbnail) so the
+            two cards read as the same design system. */}
+        <div className="home__card-header">
+          <div className="home__card-info">
+            <h3 className="home__card-title">
+              {brightonReady ? (
+                brightonFacility.name
+              ) : (
+                <span
+                  className="demo-skel demo-skel--ink"
+                  style={{ width: 170 }}
+                  aria-hidden="true"
+                />
+              )}
+            </h3>
+            <div className="home__card-meta">
+              <span>Surface lot</span>
+              <span className="home__card-meta-dot" aria-hidden="true">·</span>
+              <span>3 zones</span>
+            </div>
+            <div className="home__card-rating">
+              <CameraMiniIcon />
+              <span className="home__card-rating-num">Zone 1 live camera</span>
+            </div>
+          </div>
+          <SurfaceLotThumb />
+        </div>
+
+        <div className="home__card-divider" aria-hidden="true" />
+
+        <div className="home__card-live">
+          <div className="home__card-live-counts">
+            {brightonReady ? (
+              <>
+                <span className="home__card-spot-count">{brightonAvailable}</span>
+                <span className="home__card-spot-of">of {brightonCapacity}</span>
+              </>
+            ) : (
+              <span
+                className="demo-skel demo-skel--ink"
+                style={{ width: 76, height: "1em" }}
+                aria-hidden="true"
+              />
+            )}
+          </div>
+          <span className="home__card-spot-label">spots available</span>
+        </div>
+
+        <div className="home__card-address">
+          {brightonReady ? (
+            brightonFacility.location
+          ) : (
+            <span
+              className="demo-skel demo-skel--ink"
+              style={{ width: 200 }}
+              aria-hidden="true"
+            />
+          )}
+        </div>
+
+        <button
+          type="button"
+          className="home__card-cta"
+          onClick={() => onSelectGarage(BRIGHTON_FACILITY_SLUG)}
+        >
+          View Details
+          <ChevronRightIcon />
+        </button>
+      </article>
+      )}
 
       <nav className="home__tabbar" aria-label="Primary">
         <TabButton label="Map" active>
@@ -194,6 +351,12 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
 /* ─────────────────────────────────────────────────────────────────
    Fake map — light Apple/Google Maps look, CSS+SVG only.
    ───────────────────────────────────────────────────────────────── */
+
+function toMarkerStatus(status: FacilityStatus): MarkerStatus {
+  if (status === "nearly_full") return "full";
+  if (status === "busy") return "busy";
+  return "available";
+}
 
 function FakeMap() {
   return (
@@ -387,15 +550,30 @@ interface PinMarkerProps {
   count: number;
   top: string;
   left: string;
+  /** Set on facility-bound pins. Active pin gets a brand ring and lifted
+   *  scale to clearly belong with the bottom card. */
+  active?: boolean;
+  /** When provided, the pin renders as a real button so taps switch the
+   *  active facility. Decorative pins omit it and stay non-interactive. */
+  onClick?: () => void;
+  facility?: FacilitySlug;
 }
 
-function PinMarker({ status, count, top, left }: PinMarkerProps) {
-  return (
-    <div
-      className="home__pin"
-      data-status={status}
-      style={{ top, left }}
-    >
+function PinMarker({
+  status,
+  count,
+  top,
+  left,
+  active,
+  onClick,
+  facility,
+}: PinMarkerProps) {
+  const dataAttrs = {
+    "data-status": status,
+    "data-active": active ? "true" : undefined,
+  };
+  const inner = (
+    <>
       <span className="home__pin-ring" />
       <svg className="home__pin-svg" viewBox="0 0 48 56" aria-hidden="true">
         <path
@@ -415,6 +593,36 @@ function PinMarker({ status, count, top, left }: PinMarkerProps) {
           {count}
         </text>
       </svg>
+    </>
+  );
+
+  if (onClick) {
+    const label = facility
+      ? `Select ${facility === OSU_FACILITY_SLUG ? "OSU" : "Brighton"} parking`
+      : undefined;
+    return (
+      <button
+        type="button"
+        className="home__pin"
+        style={{ top, left }}
+        onClick={onClick}
+        aria-label={label}
+        aria-pressed={active}
+        {...dataAttrs}
+      >
+        {inner}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className="home__pin"
+      style={{ top, left }}
+      aria-hidden="true"
+      {...dataAttrs}
+    >
+      {inner}
     </div>
   );
 }
@@ -515,6 +723,55 @@ function GarageThumb() {
   );
 }
 
+function SurfaceLotThumb() {
+  return (
+    <div className="home__card-thumb home__card-thumb--surface" aria-hidden="true">
+      <svg viewBox="0 0 96 96" className="home__card-thumb-svg">
+        <defs>
+          <linearGradient id="surface-sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#dbeafe" />
+            <stop offset="100%" stopColor="#f8fafc" />
+          </linearGradient>
+          <linearGradient id="surface-mountain" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#64748b" />
+            <stop offset="100%" stopColor="#334155" />
+          </linearGradient>
+        </defs>
+        <rect width="96" height="96" rx="14" fill="url(#surface-sky)" />
+        <path d="M0 44 L22 22 L38 38 L56 18 L96 54 L96 96 L0 96 Z" fill="#cbd5e1" />
+        <path d="M6 48 L28 25 L44 42 L61 21 L94 52 L94 96 L6 96 Z" fill="url(#surface-mountain)" opacity="0.82" />
+        <path d="M0 58 H96 V96 H0 Z" fill="#e2e8f0" />
+        <g stroke="#94a3b8" strokeWidth="1.2">
+          <line x1="16" y1="62" x2="16" y2="91" />
+          <line x1="32" y1="62" x2="32" y2="91" />
+          <line x1="48" y1="62" x2="48" y2="91" />
+          <line x1="64" y1="62" x2="64" y2="91" />
+          <line x1="80" y1="62" x2="80" y2="91" />
+        </g>
+        <g fill="#2563eb">
+          <rect x="20" y="68" width="11" height="7" rx="2" />
+          <rect x="52" y="70" width="11" height="7" rx="2" />
+        </g>
+        <g fill="#ef4444">
+          <rect x="68" y="80" width="11" height="7" rx="2" />
+        </g>
+        <circle cx="76" cy="22" r="12" fill="white" />
+        <circle cx="76" cy="22" r="9" fill="#2563eb" />
+        <text
+          x="76"
+          y="25.5"
+          textAnchor="middle"
+          fontSize="10"
+          fontWeight="900"
+          fill="white"
+        >
+          P
+        </text>
+      </svg>
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────────────────────────────
    Bottom tab bar
    ───────────────────────────────────────────────────────────────── */
@@ -604,6 +861,20 @@ function StarIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M12 2.5l3.09 6.26 6.91 1.01-5 4.87 1.18 6.86L12 18.27l-6.18 3.23L7 14.64l-5-4.87 6.91-1.01L12 2.5z" />
+    </svg>
+  );
+}
+
+function CameraMiniIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M3 7h4l2-3h6l2 3h4v12H3z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="13" r="3.5" stroke="currentColor" strokeWidth="2" />
     </svg>
   );
 }
