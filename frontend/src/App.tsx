@@ -7,6 +7,7 @@ import { NavigationScreen } from "./screens/NavigationScreen";
 import { ParkedConfirmationScreen } from "./screens/ParkedConfirmationScreen";
 import { SpotVisualizationScreen } from "./screens/SpotVisualizationScreen";
 import { BrightonLotVisualizationScreen } from "./screens/BrightonLotVisualizationScreen";
+import { BusinessDashboardScreen } from "./screens/BusinessDashboardScreen";
 import { INITIAL_SCREEN, type Screen } from "./lib/navigation";
 import {
   prefetchOccupancy,
@@ -39,6 +40,10 @@ import type { Spot } from "./lib/types";
  * generic "Navigate" from Overview).
  */
 function App() {
+  if (isDashboardRoute()) {
+    return <BusinessDashboardScreen />;
+  }
+
   const [screen, setScreen] = useState<Screen>(INITIAL_SCREEN);
   const [selectedFacility, setSelectedFacility] =
     useState<FacilitySlug>(OSU_FACILITY_SLUG);
@@ -134,6 +139,11 @@ function App() {
       )}
     </div>
   );
+}
+
+function isDashboardRoute(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.location.pathname.replace(/\/$/, "") === "/dashboard";
 }
 
 export default App;
