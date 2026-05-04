@@ -1,4 +1,7 @@
-import { buildBrightonMockZoneSpots } from "./brightonMockZones";
+import {
+  BRIGHTON_MOCK_ZONES,
+  buildBrightonMockZoneSpots,
+} from "./brightonMockZones";
 import {
   BRIGHTON_FACILITY_SLUG,
   getFacility,
@@ -146,6 +149,38 @@ function countSpots(spots: Spot[]) {
   );
 }
 
+function fitCountsToCapacity({
+  available,
+  occupied,
+  unknown,
+  capacity,
+}: {
+  available: number;
+  occupied: number;
+  unknown: number;
+  capacity: number;
+}) {
+  const safeCapacity = Math.max(capacity, 0);
+  const safeOccupied = Math.min(Math.max(occupied, 0), safeCapacity);
+  const safeUnknown = Math.min(
+    Math.max(unknown, 0),
+    Math.max(safeCapacity - safeOccupied, 0),
+  );
+  const safeAvailable = Math.min(
+    Math.max(available, 0),
+    Math.max(safeCapacity - safeOccupied - safeUnknown, 0),
+  );
+  const paddedUnknown =
+    safeUnknown +
+    Math.max(safeCapacity - safeAvailable - safeOccupied - safeUnknown, 0);
+
+  return {
+    available: safeAvailable,
+    occupied: safeOccupied,
+    unknown: paddedUnknown,
+  };
+}
+
 function makeSpotsFromCounts({
   level,
   labelPrefix,
@@ -236,8 +271,35 @@ function normalizeBrightonOccupancy(yolo: YoloStatusResponse): Occupancy {
   const zoneOneSpots = buildBrightonZoneOneSpots(yolo);
   const mockZoneSpots = buildBrightonMockZoneSpots();
   const spots = [...zoneOneSpots, ...mockZoneSpots];
-  const counts = countSpots(spots);
-  const capacity = spots.length;
+  const hasRealZoneOneSpots =
+    Array.isArray(yolo.spots) && yolo.spots.length > 0;
+  const zoneOneMappedCounts = countSpots(zoneOneSpots);
+  const zoneOneCapacity = Math.max(toCount(yolo.capacity), zoneOneSpots.length);
+  const zoneOneCounts = hasRealZoneOneSpots
+    ? fitCountsToCapacity({
+        available: isFiniteNumber(yolo.available)
+          ? toCount(yolo.available)
+          : zoneOneMappedCounts.available,
+        occupied: isFiniteNumber(yolo.occupied)
+          ? toCount(yolo.occupied)
+          : zoneOneMappedCounts.occupied,
+        unknown: isFiniteNumber(yolo.unknown)
+          ? toCount(yolo.unknown)
+          : zoneOneMappedCounts.unknown,
+        capacity: zoneOneCapacity,
+      })
+    : zoneOneMappedCounts;
+  const mockCounts = countSpots(mockZoneSpots);
+  const mockCapacity = BRIGHTON_MOCK_ZONES.reduce(
+    (total, zone) => total + zone.capacity,
+    0,
+  );
+  const capacity = zoneOneCapacity + mockCapacity;
+  const counts = {
+    available: zoneOneCounts.available + mockCounts.available,
+    occupied: zoneOneCounts.occupied + mockCounts.occupied,
+    unknown: zoneOneCounts.unknown + mockCounts.unknown,
+  };
   const occupancyPct = normalizeIncomingPct(
     undefined,
     counts.occupied,

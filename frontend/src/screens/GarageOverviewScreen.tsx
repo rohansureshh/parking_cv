@@ -271,25 +271,14 @@ export function GarageOverviewScreen({
         </section>
 
         <div className="overview__actions">
-          {isBrighton ? (
-            <button
-              type="button"
-              className="overview__cta overview__cta--primary overview__cta--disabled"
-              disabled
-            >
-              <LayersIcon />
-              Brighton 3D lot visualization coming next.
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="overview__cta overview__cta--primary"
-              onClick={onViewSpotMap}
-            >
-              <CarIcon />
-              View Spot Map
-            </button>
-          )}
+          <button
+            type="button"
+            className="overview__cta overview__cta--primary"
+            onClick={onViewSpotMap}
+          >
+            {isBrighton ? <LayersIcon /> : <CarIcon />}
+            View Spot Map
+          </button>
           <button
             type="button"
             className="overview__cta overview__cta--secondary"

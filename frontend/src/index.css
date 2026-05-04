@@ -334,6 +334,12 @@ button:disabled {
   height: 460px;
 }
 
+.hero--surface-lot {
+  background:
+    linear-gradient(180deg, rgba(219, 234, 254, 0.42) 0%, transparent 38%),
+    linear-gradient(180deg, #f5f9fd 0%, #e8eef6 100%);
+}
+
 @media (max-width: 380px) {
   .hero {
     height: 420px;
@@ -434,6 +440,44 @@ button:disabled {
   color: var(--brand);
   line-height: 1.05;
   letter-spacing: -0.02em;
+}
+
+.brighton-zone-note {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-soft);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+}
+
+.brighton-zone-note span:first-child {
+  color: var(--ink-soft);
+  font-weight: 800;
+}
+
+.brighton-zone-note span:last-child {
+  text-align: right;
+}
+
+@media (max-width: 380px) {
+  .brighton-zone-note {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .brighton-zone-note span:last-child {
+    text-align: left;
+  }
 }
 
 .hero__hint {

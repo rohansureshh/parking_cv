@@ -6,12 +6,17 @@ import { GarageOverviewScreen } from "./screens/GarageOverviewScreen";
 import { NavigationScreen } from "./screens/NavigationScreen";
 import { ParkedConfirmationScreen } from "./screens/ParkedConfirmationScreen";
 import { SpotVisualizationScreen } from "./screens/SpotVisualizationScreen";
+import { BrightonLotVisualizationScreen } from "./screens/BrightonLotVisualizationScreen";
 import { INITIAL_SCREEN, type Screen } from "./lib/navigation";
 import {
   prefetchOccupancy,
   type SelectedSpot,
 } from "./lib/occupancyCache";
-import { OSU_FACILITY_SLUG, type FacilitySlug } from "./lib/facilities";
+import {
+  BRIGHTON_FACILITY_SLUG,
+  OSU_FACILITY_SLUG,
+  type FacilitySlug,
+} from "./lib/facilities";
 import type { Spot } from "./lib/types";
 
 /**
@@ -57,12 +62,11 @@ function App() {
   }, []);
 
   const goSpotViz = useCallback(() => {
-    if (selectedFacility !== OSU_FACILITY_SLUG) return;
     // Fresh visit to Spot Viz — clear any prior selection so back-out
     // and re-entry behaves like a clean session.
     setSelectedSpot(null);
     setScreen({ kind: "spot_visualization" });
-  }, [selectedFacility]);
+  }, []);
 
   const goNavigation = useCallback(() => {
     // Generic "Navigate" from Garage Overview — no specific spot selected.
@@ -98,10 +102,17 @@ function App() {
       )}
 
       {screen.kind === "spot_visualization" && (
-        <SpotVisualizationScreen
-          onBack={() => goOverview(OSU_FACILITY_SLUG)}
-          onStartNavigation={goNavigationWithSpot}
-        />
+        selectedFacility === BRIGHTON_FACILITY_SLUG ? (
+          <BrightonLotVisualizationScreen
+            onBack={() => goOverview(BRIGHTON_FACILITY_SLUG)}
+            onStartNavigation={goNavigationWithSpot}
+          />
+        ) : (
+          <SpotVisualizationScreen
+            onBack={() => goOverview(OSU_FACILITY_SLUG)}
+            onStartNavigation={goNavigationWithSpot}
+          />
+        )
       )}
 
       {screen.kind === "navigation" && (
