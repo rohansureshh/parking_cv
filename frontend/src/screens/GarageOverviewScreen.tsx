@@ -376,9 +376,8 @@ function LevelRow({
 function getSectionSourceLabel(level: string, isBrighton: boolean): string | undefined {
   if (!isBrighton) return undefined;
   // Only Zone 1 has a meaningful source annotation (live YOLO camera).
-  // Zones 2/3 are static mock data — leave the label undefined so the
-  // overview row renders cleanly with no demo-undermining "Estimated"
-  // tag next to the count.
+  // Zones 2/3 are static mock data, so leave the label undefined and keep
+  // the overview rows quiet.
   return level.toUpperCase() === "Z1" ? "Live camera" : undefined;
 }
 

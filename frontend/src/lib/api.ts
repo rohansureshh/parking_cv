@@ -19,7 +19,7 @@ interface BrightonMockZoneSummary {
   confidence?: number;
 }
 
-interface BrightonMockZonesPayload {
+export interface BrightonMockZonesPayload {
   zones?: BrightonMockZoneSummary[];
   capacity?: number;
   available?: number;
@@ -33,6 +33,22 @@ const RAW_YOLO_BASE =
   import.meta.env.VITE_YOLO_API_BASE_URL ?? "http://127.0.0.1:8001";
 export const API_BASE_URL = RAW_BASE.replace(/\/$/, "");
 export const YOLO_API_BASE_URL = RAW_YOLO_BASE.replace(/\/$/, "");
+
+export function getBrightonYoloWebSocketUrl(): string {
+  try {
+    const url = new URL(YOLO_API_BASE_URL);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    const basePath = url.pathname.replace(/\/$/, "");
+    url.pathname = `${basePath}/ws`;
+    return url.toString();
+  } catch {
+    const wsBase = YOLO_API_BASE_URL.replace(/^https:/, "wss:").replace(
+      /^http:/,
+      "ws:",
+    );
+    return `${wsBase.replace(/\/$/, "")}/ws`;
+  }
+}
 
 type ApiErrorKind = "network" | "http" | "missing_seed";
 
@@ -57,6 +73,18 @@ interface YoloStatusResponse {
   unknown?: number;
   occupancy_pct?: number;
   spots?: YoloSpotResponse[];
+}
+
+export type BrightonYoloSnapshot = YoloStatusResponse;
+
+export type BrightonWebSocketStatus =
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "disconnected";
+
+interface BrightonWebSocketOptions {
+  onStatusChange?: (status: BrightonWebSocketStatus) => void;
 }
 
 export class ApiError extends Error {
@@ -390,7 +418,7 @@ function normalizeBrightonOccupancy(
   };
 }
 
-function localBrightonMockZonesPayload(): BrightonMockZonesPayload {
+export function localBrightonMockZonesPayload(): BrightonMockZonesPayload {
   return {
     zones: BRIGHTON_MOCK_ZONES.map((zone) => ({
       level: zone.level,
@@ -404,7 +432,7 @@ function localBrightonMockZonesPayload(): BrightonMockZonesPayload {
   };
 }
 
-async function fetchBrightonMockZonesPayload(): Promise<BrightonMockZonesPayload> {
+export async function fetchBrightonMockZonesPayload(): Promise<BrightonMockZonesPayload> {
   try {
     return await request<BrightonMockZonesPayload>(
       API_BASE_URL,
@@ -420,6 +448,120 @@ async function fetchBrightonMockZonesPayload(): Promise<BrightonMockZonesPayload
   }
 }
 
+export function buildBrightonOccupancyFromSnapshot(
+  yolo: BrightonYoloSnapshot,
+  mockPayload: BrightonMockZonesPayload = localBrightonMockZonesPayload(),
+): Occupancy {
+  return normalizeBrightonOccupancy(yolo, mockPayload);
+}
+
+export function fetchBrightonYoloStatus(): Promise<BrightonYoloSnapshot> {
+  return request<BrightonYoloSnapshot>(YOLO_API_BASE_URL, "/status");
+}
+
+export function subscribeBrightonYoloSnapshots(
+  onSnapshot: (snapshot: BrightonYoloSnapshot) => void,
+  options: BrightonWebSocketOptions = {},
+): () => void {
+  if (typeof WebSocket === "undefined") {
+    options.onStatusChange?.("disconnected");
+    return () => {};
+  }
+
+  const url = getBrightonYoloWebSocketUrl();
+  let socket: WebSocket | null = null;
+  let stopped = false;
+  let reconnectTimer: number | null = null;
+  let reconnectAttempt = 0;
+
+  function clearReconnectTimer() {
+    if (reconnectTimer !== null) {
+      window.clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  }
+
+  function scheduleReconnect() {
+    if (stopped || reconnectTimer !== null) return;
+    reconnectAttempt += 1;
+    const delayMs = Math.min(1000 * 2 ** Math.min(reconnectAttempt - 1, 3), 10000);
+    options.onStatusChange?.("reconnecting");
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = null;
+      connect();
+    }, delayMs);
+  }
+
+  function connect() {
+    if (stopped) return;
+    options.onStatusChange?.(
+      reconnectAttempt === 0 ? "connecting" : "reconnecting",
+    );
+
+    try {
+      socket = new WebSocket(url);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[SwiftPark] Could not open Brighton WebSocket", err);
+      scheduleReconnect();
+      return;
+    }
+
+    socket.onopen = () => {
+      reconnectAttempt = 0;
+      clearReconnectTimer();
+      options.onStatusChange?.("connected");
+    };
+
+    socket.onmessage = (event) => {
+      if (typeof event.data !== "string") return;
+      try {
+        const parsed: unknown = JSON.parse(event.data);
+        if (parsed && typeof parsed === "object") {
+          onSnapshot(parsed as BrightonYoloSnapshot);
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("[SwiftPark] Ignoring malformed Brighton WebSocket frame", err);
+      }
+    };
+
+    socket.onerror = () => {
+      // Let onclose do the reconnect scheduling. Some browsers fire both.
+    };
+
+    socket.onclose = () => {
+      socket = null;
+      if (stopped) {
+        options.onStatusChange?.("disconnected");
+        return;
+      }
+      scheduleReconnect();
+    };
+  }
+
+  connect();
+
+  return () => {
+    stopped = true;
+    clearReconnectTimer();
+    if (socket) {
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+      if (
+        socket.readyState === WebSocket.CONNECTING ||
+        socket.readyState === WebSocket.OPEN
+      ) {
+        socket.close(1000, "SwiftPark screen closed");
+      }
+    }
+    socket = null;
+    options.onStatusChange?.("disconnected");
+  };
+}
+
 export function fetchOccupancy(
   facilitySlug: FacilitySlug = OSU_FACILITY_SLUG,
 ): Promise<Occupancy> {
@@ -429,9 +571,9 @@ export function fetchOccupancy(
 
   if (facilitySlug === BRIGHTON_FACILITY_SLUG) {
     return Promise.all([
-      request<YoloStatusResponse>(YOLO_API_BASE_URL, "/status"),
+      fetchBrightonYoloStatus(),
       fetchBrightonMockZonesPayload(),
-    ]).then(([yolo, mock]) => normalizeBrightonOccupancy(yolo, mock));
+    ]).then(([yolo, mock]) => buildBrightonOccupancyFromSnapshot(yolo, mock));
   }
 
   const exhaustive: never = facilitySlug;

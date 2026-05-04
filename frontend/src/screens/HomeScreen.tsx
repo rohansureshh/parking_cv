@@ -256,9 +256,13 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
       </article>
       ) : (
       <article className="home__card home__card--brighton">
+        {/* Same structural rhythm as the OSU card: header (info + thumb)
+            → divider → live availability → address → CTA. Brighton-only
+            content lives inside this shell (camera/live indicator in
+            place of OSU's review count, surface-lot thumbnail) so the
+            two cards read as the same design system. */}
         <div className="home__card-header">
           <div className="home__card-info">
-            <div className="home__card-eyebrow">Mountain surface lot</div>
             <h3 className="home__card-title">
               {brightonReady ? (
                 brightonFacility.name
@@ -272,7 +276,7 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
             </h3>
             <div className="home__card-meta">
               <span>Surface lot</span>
-              <span className="home__card-meta-dot" aria-hidden="true">-</span>
+              <span className="home__card-meta-dot" aria-hidden="true">·</span>
               <span>3 zones</span>
             </div>
             <div className="home__card-rating">
@@ -283,7 +287,9 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
           <SurfaceLotThumb />
         </div>
 
-        <div className="home__card-live home__card-live--compact">
+        <div className="home__card-divider" aria-hidden="true" />
+
+        <div className="home__card-live">
           <div className="home__card-live-counts">
             {brightonReady ? (
               <>
@@ -301,9 +307,16 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
           <span className="home__card-spot-label">spots available</span>
         </div>
 
-        <div className="home__card-features">
-          <span className="home__card-feature">3 zones</span>
-          <span className="home__card-feature">Surface lot</span>
+        <div className="home__card-address">
+          {brightonReady ? (
+            brightonFacility.location
+          ) : (
+            <span
+              className="demo-skel demo-skel--ink"
+              style={{ width: 200 }}
+              aria-hidden="true"
+            />
+          )}
         </div>
 
         <button

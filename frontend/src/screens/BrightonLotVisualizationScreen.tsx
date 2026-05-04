@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ConfirmationModal } from "../components/ConfirmationModal";
 import { FloorSelector } from "../components/FloorSelector";
@@ -8,7 +8,16 @@ import BrightonLot3D from "../components/parking/BrightonLot3D";
 import { SpotPanel } from "../components/SpotPanel";
 import { StatsRow } from "../components/StatsRow";
 import { TopBar } from "../components/TopBar";
-import { ApiError, fetchOccupancy, simulateDetection } from "../lib/api";
+import {
+  ApiError,
+  buildBrightonOccupancyFromSnapshot,
+  fetchBrightonMockZonesPayload,
+  fetchBrightonYoloStatus,
+  localBrightonMockZonesPayload,
+  subscribeBrightonYoloSnapshots,
+  type BrightonMockZonesPayload,
+  type BrightonYoloSnapshot,
+} from "../lib/api";
 import {
   BRIGHTON_ZONE1_LABELS,
   buildBrightonLotLayout,
@@ -41,8 +50,14 @@ export function BrightonLotVisualizationScreen({
   const [confirmedSpot, setConfirmedSpot] = useState<Spot | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [viewVersion, setViewVersion] = useState(0);
+  const mockPayloadRef = useRef<BrightonMockZonesPayload>(
+    localBrightonMockZonesPayload(),
+  );
+  const latestYoloRef = useRef<BrightonYoloSnapshot | null>(null);
+  const hasOccupancyRef = useRef(false);
 
   const applyOccupancy = useCallback((occupancy: Occupancy) => {
+    hasOccupancyRef.current = true;
     setState({ kind: "ready", occupancy });
     setCachedOccupancy(BRIGHTON_FACILITY_SLUG, occupancy);
     setSelectedSpotId((current) => {
@@ -52,37 +67,77 @@ export function BrightonLotVisualizationScreen({
     });
   }, []);
 
-  const refresh = useCallback(async () => {
+  const applyYoloSnapshot = useCallback(
+    (snapshot: BrightonYoloSnapshot) => {
+      latestYoloRef.current = snapshot;
+      applyOccupancy(
+        buildBrightonOccupancyFromSnapshot(snapshot, mockPayloadRef.current),
+      );
+    },
+    [applyOccupancy],
+  );
+
+  const refreshRestSnapshot = useCallback(async () => {
     setRefreshing(true);
     try {
-      const data = await fetchOccupancy(BRIGHTON_FACILITY_SLUG);
-      applyOccupancy(data);
+      const snapshot = await fetchBrightonYoloStatus();
+      applyYoloSnapshot(snapshot);
     } catch (err) {
-      const apiErr =
-        err instanceof ApiError ? err : new ApiError(String(err), "network");
-      setState({ kind: "error", error: apiErr });
+      if (!hasOccupancyRef.current) {
+        const apiErr =
+          err instanceof ApiError ? err : new ApiError(String(err), "network");
+        setState({ kind: "error", error: apiErr });
+      }
     } finally {
       setRefreshing(false);
     }
-  }, [applyOccupancy]);
+  }, [applyYoloSnapshot]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let cancelled = false;
+
+    mockPayloadRef.current = localBrightonMockZonesPayload();
+
+    const applyIfMounted = (snapshot: BrightonYoloSnapshot) => {
+      if (!cancelled) applyYoloSnapshot(snapshot);
+    };
+
+    const unsubscribe = subscribeBrightonYoloSnapshots(applyIfMounted);
+
+    fetchBrightonMockZonesPayload()
+      .then((mockPayload) => {
+        if (cancelled) return;
+        mockPayloadRef.current = mockPayload;
+        if (latestYoloRef.current) applyYoloSnapshot(latestYoloRef.current);
+      })
+      .catch(() => {
+        // fetchBrightonMockZonesPayload already falls back internally.
+      });
+
+    setRefreshing(true);
+    fetchBrightonYoloStatus()
+      .then((snapshot) => {
+        if (!cancelled) applyYoloSnapshot(snapshot);
+      })
+      .catch((err) => {
+        if (cancelled || hasOccupancyRef.current) return;
+        const apiErr =
+          err instanceof ApiError ? err : new ApiError(String(err), "network");
+        setState({ kind: "error", error: apiErr });
+      })
+      .finally(() => {
+        if (!cancelled) setRefreshing(false);
+      });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [applyYoloSnapshot]);
 
   const handleRefreshSnapshot = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const data = await simulateDetection(BRIGHTON_FACILITY_SLUG);
-      applyOccupancy(data);
-    } catch (err) {
-      const apiErr =
-        err instanceof ApiError ? err : new ApiError(String(err), "network");
-      setState({ kind: "error", error: apiErr });
-    } finally {
-      setRefreshing(false);
-    }
-  }, [applyOccupancy]);
+    await refreshRestSnapshot();
+  }, [refreshRestSnapshot]);
 
   const occupancy = state.kind === "ready" ? state.occupancy : null;
 
@@ -154,7 +209,7 @@ export function BrightonLotVisualizationScreen({
       <TopBar
         title="Brighton Spot Map"
         facilityStatus={occupancy?.facility_status}
-        onRefresh={() => void refresh()}
+        onRefresh={() => void refreshRestSnapshot()}
         refreshing={refreshing}
         onBack={onBack}
       />
@@ -162,7 +217,7 @@ export function BrightonLotVisualizationScreen({
       {state.kind === "loading" && <LoadingSkeleton />}
 
       {state.kind === "error" && (
-        <ErrorBanner error={state.error} onRetry={() => void refresh()} />
+        <ErrorBanner error={state.error} onRetry={() => void refreshRestSnapshot()} />
       )}
 
       {state.kind === "ready" && (
