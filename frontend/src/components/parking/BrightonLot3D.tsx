@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
+import {
+  pickModelForSpot,
+  preloadCarModels,
+  spawnCarFromModel,
+} from "./carModelLoader";
 import type { BrightonLotSpace } from "../../lib/brightonLotLayout";
 import type { Spot, SpotStatus } from "../../lib/types";
 
@@ -66,10 +71,28 @@ export default function BrightonLot3D({
   const mountRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef<InternalState | null>(null);
   const onSelectRef = useRef(onSelectSpot);
+  // Flips to true once the GLB cache from carModelLoader has finished
+  // loading. The rebuild effect depends on this so the first paint
+  // shows the procedural fallback car for occupied spots and the second
+  // paint upgrades to the OSU showroom GLBs without a stutter.
+  const [modelsReady, setModelsReady] = useState(false);
 
   useEffect(() => {
     onSelectRef.current = onSelectSpot;
   }, [onSelectSpot]);
+
+  // Kick off the shared GLB preload. carModelLoader is module-cached, so
+  // when the OSU screen has already preloaded these this is essentially
+  // a no-op — Brighton just gets the same cached scenes.
+  useEffect(() => {
+    let cancelled = false;
+    preloadCarModels().then((entries) => {
+      if (!cancelled && entries.length > 0) setModelsReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const spotByLabel = useMemo(() => {
     const map = new Map<string, Spot>();
@@ -84,13 +107,13 @@ export default function BrightonLot3D({
     const bounds = computeBounds(spaces);
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf2f7fb);
-    scene.fog = new THREE.FogExp2(0xf2f7fb, 0.015);
+    scene.fog = new THREE.FogExp2(0xf2f7fb, 0.013);
 
     const camera = new THREE.PerspectiveCamera(
       45,
       el.clientWidth / Math.max(1, el.clientHeight),
       0.1,
-      180,
+      220,
     );
     const sph = {
       theta: DEFAULT_THETA,
@@ -111,19 +134,19 @@ export default function BrightonLot3D({
     scene.add(new THREE.AmbientLight(0xeef6ff, 1.08));
 
     const sun = new THREE.DirectionalLight(0xffffff, 1.04);
-    sun.position.set(20, 28, 12);
+    sun.position.set(20, 32, 14);
     sun.castShadow = true;
     sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 90;
-    sun.shadow.camera.left = -36;
-    sun.shadow.camera.right = 36;
-    sun.shadow.camera.top = 36;
-    sun.shadow.camera.bottom = -36;
+    sun.shadow.camera.far = 120;
+    sun.shadow.camera.left = -45;
+    sun.shadow.camera.right = 45;
+    sun.shadow.camera.top = 45;
+    sun.shadow.camera.bottom = -45;
     sun.shadow.mapSize.set(2048, 2048);
     scene.add(sun);
 
     const fill = new THREE.DirectionalLight(0xbdd7ff, 0.54);
-    fill.position.set(-18, 14, -18);
+    fill.position.set(-22, 16, -22);
     scene.add(fill);
 
     const state: InternalState = {
@@ -181,7 +204,7 @@ export default function BrightonLot3D({
     );
     updateCamera(state.camera, state.sph);
     rebuildLot(state, spaces, spotByLabel, selectedSpot);
-  }, [spaces, spotByLabel, selectedSpot]);
+  }, [spaces, spotByLabel, selectedSpot, modelsReady]);
 
   useEffect(() => {
     if (viewVersion === 0) return;
@@ -240,11 +263,11 @@ export default function BrightonLot3D({
   const onWheel = useCallback((event: React.WheelEvent) => {
     const state = stateRef.current;
     if (!state) return;
-    const minRadius = Math.max(10, state.bounds.radius * 0.55);
-    const maxRadius = Math.max(38, state.bounds.radius * 2);
+    const minRadius = Math.max(12, state.bounds.radius * 0.55);
+    const maxRadius = Math.max(48, state.bounds.radius * 2);
     state.sph.radius = Math.max(
       minRadius,
-      Math.min(maxRadius, state.sph.radius + event.deltaY * 0.045),
+      Math.min(maxRadius, state.sph.radius + event.deltaY * 0.05),
     );
     updateCamera(state.camera, state.sph);
   }, []);
@@ -270,6 +293,10 @@ export default function BrightonLot3D({
   );
 }
 
+// ──────────────────────────────────────────────────────────────────────
+// Scene construction
+// ──────────────────────────────────────────────────────────────────────
+
 function rebuildLot(
   state: InternalState,
   spaces: readonly BrightonLotSpace[],
@@ -282,7 +309,8 @@ function rebuildLot(
   state.scene.add(group);
   state.lotGroup = group;
 
-  buildSurface(group, state.bounds);
+  const rowZs = collectRowZs(spaces);
+  buildSurface(group, state.bounds, rowZs);
 
   const targets: THREE.Mesh[] = [];
   for (const space of spaces) {
@@ -304,53 +332,109 @@ function disposeLot(state: InternalState) {
   state.spotTargets = [];
 }
 
-function buildSurface(group: THREE.Group, bounds: LotBounds) {
+function buildSurface(
+  group: THREE.Group,
+  bounds: LotBounds,
+  rowZs: number[],
+) {
+  // Asphalt slab — slightly bigger than the row footprint so the painted
+  // markings have a shoulder of empty asphalt around the parking grid.
   const groundMat = new THREE.MeshStandardMaterial({
     color: 0xe6edf5,
     roughness: 0.82,
     metalness: 0.02,
   });
   const ground = new THREE.Mesh(
-    new THREE.BoxGeometry(bounds.width + 8, 0.14, bounds.depth + 7),
+    new THREE.BoxGeometry(bounds.width + 8, 0.14, bounds.depth + 8),
     groundMat,
   );
   ground.position.y = -0.07;
   ground.receiveShadow = true;
   group.add(ground);
 
-  const laneMat = new THREE.MeshStandardMaterial({
-    color: 0xd3dce7,
-    roughness: 0.86,
-    metalness: 0,
-  });
-  const dashMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.72,
-  });
+  // Lane surfaces + center dashes + directional arrows between every
+  // pair of adjacent rows. Adapted from the OSU ParkingGarage3D pattern
+  // so the two screens read as the same SwiftPark visual language.
+  if (rowZs.length >= 2) {
+    const laneSurfaceMat = new THREE.MeshStandardMaterial({
+      color: 0xd3dce7,
+      roughness: 0.86,
+      metalness: 0,
+    });
+    const dashMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.7,
+    });
+    const arrowMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.5,
+    });
+    const laneWidth = 2.6;
+    const numDashes = Math.max(6, Math.floor(bounds.width / 2.5));
+    const dashSpacing = bounds.width / numDashes;
+    const arrowSpacing = 5.0;
+    const numArrows = Math.max(2, Math.floor((bounds.width - 4) / arrowSpacing));
 
-  [-bounds.depth * 0.26, bounds.depth * 0.24].forEach((z, laneIndex) => {
-    const lane = new THREE.Mesh(
-      new THREE.BoxGeometry(bounds.width + 8, 0.025, 2.45),
-      laneMat,
-    );
-    lane.position.set(0, 0.015, z);
-    lane.receiveShadow = true;
-    group.add(lane);
+    for (let i = 0; i < rowZs.length - 1; i++) {
+      const laneZ = (rowZs[i] + rowZs[i + 1]) / 2;
 
-    const dashCount = Math.max(6, Math.floor((bounds.width + 5) / 3));
-    for (let i = 0; i < dashCount; i++) {
-      const dash = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.032, 0.08), dashMat);
-      dash.position.set(
-        -(bounds.width + 5) / 2 + (i + 0.5) * ((bounds.width + 5) / dashCount),
-        0.036,
-        z,
+      const lane = new THREE.Mesh(
+        new THREE.PlaneGeometry(bounds.width, laneWidth),
+        laneSurfaceMat,
       );
-      if (laneIndex % 2 === 1) dash.rotation.y = Math.PI;
-      group.add(dash);
-    }
-  });
+      lane.rotation.x = -Math.PI / 2;
+      lane.position.set(0, 0.005, laneZ);
+      lane.receiveShadow = true;
+      group.add(lane);
 
+      for (let j = 0; j < numDashes; j++) {
+        const dash = new THREE.Mesh(
+          new THREE.PlaneGeometry(dashSpacing * 0.45, 0.08),
+          dashMat,
+        );
+        dash.rotation.x = -Math.PI / 2;
+        dash.position.set(
+          -bounds.width / 2 + dashSpacing * (j + 0.5),
+          0.011,
+          laneZ,
+        );
+        group.add(dash);
+      }
+
+      // Direction arrows alternate per aisle for a believable one-way
+      // circulation pattern, same convention OSU uses.
+      const flowSign = i % 2 === 0 ? 1 : -1;
+      for (let k = 0; k < numArrows; k++) {
+        const ax =
+          -bounds.width / 2 + 2 + k * arrowSpacing + arrowSpacing / 2;
+        const arrow = new THREE.Group();
+        const stem = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.6, 0.07),
+          arrowMat,
+        );
+        stem.rotation.x = -Math.PI / 2;
+        arrow.add(stem);
+        [-1, 1].forEach((s) => {
+          const fl = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.32, 0.07),
+            arrowMat,
+          );
+          fl.rotation.x = -Math.PI / 2;
+          fl.rotation.z = (s * Math.PI) / 4;
+          fl.position.set(0.27, 0, s * 0.13);
+          arrow.add(fl);
+        });
+        arrow.scale.x = flowSign;
+        arrow.position.set(ax, 0.012, laneZ);
+        group.add(arrow);
+      }
+    }
+  }
+
+  // Snow banks at the long edges — keeps Brighton's mountain-resort feel
+  // and gives the lot a clear visual "edge" beyond the asphalt.
   const snowMat = new THREE.MeshStandardMaterial({
     color: 0xf8fbff,
     roughness: 0.9,
@@ -358,10 +442,10 @@ function buildSurface(group: THREE.Group, bounds: LotBounds) {
   });
   [-1, 1].forEach((side) => {
     const bank = new THREE.Mesh(
-      new THREE.BoxGeometry(bounds.width + 7, 0.16, 0.5),
+      new THREE.BoxGeometry(bounds.width + 8, 0.18, 0.55),
       snowMat,
     );
-    bank.position.set(0, 0.04, side * (bounds.depth / 2 + 3.1));
+    bank.position.set(0, 0.04, side * (bounds.depth / 2 + 3.4));
     bank.receiveShadow = true;
     group.add(bank);
   });
@@ -416,7 +500,21 @@ function buildSpace(
   }
 
   if (spot.status === "occupied") {
-    group.add(makeCar(space.width, space.depth, hashCode(spot.id)));
+    let car: THREE.Object3D | null = null;
+    const entry = pickModelForSpot(spot.id);
+    if (entry) {
+      try {
+        car = spawnCarFromModel(entry, space.width, space.depth, 0, spot.id);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("[Brighton] spawnCarFromModel failed for", spot.id, err);
+        car = null;
+      }
+    }
+    if (!car) {
+      car = makeFallbackCar(space.width, space.depth, hashCode(spot.id));
+    }
+    group.add(car);
   }
 
   if (spot.status !== "occupied" || isSelected) {
@@ -437,7 +535,7 @@ function makePaintedOutline(
     transparent: true,
     opacity: status === "unknown" ? 0.62 : 0.95,
   });
-  const line = status === "selected" ? 0.08 : 0.045;
+  const line = status === "selected" ? 0.1 : 0.06;
   const y = 0.07;
 
   [
@@ -446,7 +544,10 @@ function makePaintedOutline(
     { x: 0, z: -depth / 2 + line / 2, w: width, d: line },
     { x: 0, z: depth / 2 - line / 2, w: width, d: line },
   ].forEach((edge) => {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(edge.w, 0.03, edge.d), mat);
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(edge.w, 0.03, edge.d),
+      mat,
+    );
     mesh.position.set(edge.x, y, edge.z);
     group.add(mesh);
   });
@@ -454,7 +555,12 @@ function makePaintedOutline(
   return group;
 }
 
-function makeCar(width: number, depth: number, seed: number): THREE.Group {
+/**
+ * Lightweight procedural car. Used only as a fallback while the GLB
+ * models are still loading, or if a model fails to spawn for a given
+ * spot. Production rendering goes through `spawnCarFromModel`.
+ */
+function makeFallbackCar(width: number, depth: number, seed: number): THREE.Group {
   const colors = [0x1e293b, 0x334155, 0x64748b, 0xf8fafc, 0x2563eb];
   const bodyColor = colors[seed % colors.length];
   const group = new THREE.Group();
@@ -514,7 +620,7 @@ function makeSpotLabel(label: string, isSelected: boolean): THREE.Mesh {
 
   const texture = new THREE.CanvasTexture(canvas);
   const labelMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.04, 0.52),
+    new THREE.PlaneGeometry(1.6, 0.8),
     new THREE.MeshBasicMaterial({
       map: texture,
       transparent: true,
@@ -536,15 +642,31 @@ function makeMissingSpot(space: BrightonLotSpace): Spot {
   };
 }
 
+function collectRowZs(spaces: readonly BrightonLotSpace[]): number[] {
+  // Round to a small precision so floating-point drift between rows in
+  // the same band still groups together. Returns sorted unique row Zs.
+  const seen = new Set<string>();
+  const result: number[] = [];
+  for (const space of spaces) {
+    const key = space.z.toFixed(3);
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(space.z);
+    }
+  }
+  result.sort((a, b) => a - b);
+  return result;
+}
+
 function computeBounds(spaces: readonly BrightonLotSpace[]): LotBounds {
-  if (spaces.length === 0) return { width: 24, depth: 16, radius: 26 };
+  if (spaces.length === 0) return { width: 24, depth: 16, radius: 32 };
   const minX = Math.min(...spaces.map((space) => space.x - space.width / 2));
   const maxX = Math.max(...spaces.map((space) => space.x + space.width / 2));
   const minZ = Math.min(...spaces.map((space) => space.z - space.depth / 2));
   const maxZ = Math.max(...spaces.map((space) => space.z + space.depth / 2));
-  const width = Math.max(18, maxX - minX + 4);
+  const width = Math.max(20, maxX - minX + 4);
   const depth = Math.max(14, maxZ - minZ + 5);
-  const radius = Math.max(24, Math.max(width, depth) * 0.86);
+  const radius = Math.max(28, Math.max(width, depth) * 0.78);
   return { width, depth, radius };
 }
 
@@ -587,13 +709,41 @@ function hashCode(value: string): number {
   return Math.abs(hash);
 }
 
-function disposeObject3D(object: THREE.Object3D) {
-  object.children.slice().forEach((child) => disposeObject3D(child));
+/**
+ * Disposes a Three.js subtree without freeing geometry/materials that
+ * are shared with other screens.
+ *
+ * `spawnCarFromModel` from `carModelLoader` returns a wrapper Group
+ * tagged with `userData.shared = true` and a `userData.tintedMaterials`
+ * array of the per-spot material clones it minted. We free those
+ * tinted materials here, but leave the underlying GLB geometry and
+ * its source materials alone — the OSU ParkingGarage3D screen depends
+ * on the same cached scenes.
+ */
+function disposeObject3D(object: THREE.Object3D, sharedAncestor = false) {
+  const isShared = sharedAncestor || object.userData?.shared === true;
+
+  if (object.userData?.tintedMaterials) {
+    const tinted = object.userData.tintedMaterials as THREE.Material[];
+    for (const mat of tinted) {
+      try {
+        mat.dispose();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  object.children.slice().forEach((child) => disposeObject3D(child, isShared));
+
+  if (isShared) return;
 
   const mesh = object as THREE.Mesh;
   if (mesh.geometry) mesh.geometry.dispose();
   if (mesh.material) {
-    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const materials = Array.isArray(mesh.material)
+      ? mesh.material
+      : [mesh.material];
     materials.forEach((material) => {
       const maybeMapped = material as THREE.Material & { map?: THREE.Texture };
       if (maybeMapped.map) maybeMapped.map.dispose();

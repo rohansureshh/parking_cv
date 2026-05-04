@@ -21,9 +21,16 @@ export interface BrightonLotSpace {
   source: "calibrated" | "generated";
 }
 
-// The YOLO camera calibration for Brighton Zone 1 currently defines 41
-// mapped spaces. Keep these labels stable so backend spot ids like S01/S02
-// land in deterministic positions in the visual lot.
+/**
+ * Brighton Zone 1 calibration data. The polygon coordinates here come
+ * from the YOLO camera image space (top-left origin, perspective
+ * distorted) and are used ONLY to infer the real-world row grouping
+ * and within-row left/right ordering. They are never plugged directly
+ * into the 3D scene — the camera angle is too oblique for that to read
+ * cleanly. Instead, every label below is assigned to a clean stall in
+ * a standardized surface-lot grid while preserving its row + neighbour
+ * order from this calibration.
+ */
 const BRIGHTON_ZONE1_POLYGONS: readonly CalibratedSpotPolygon[] = [
   { label: "S01", polygon: [[83, 852], [176, 847], [111, 1007], [62, 974]] },
   { label: "S02", polygon: [[187, 847], [391, 842], [229, 1004], [121, 1005]] },
@@ -68,25 +75,35 @@ const BRIGHTON_ZONE1_POLYGONS: readonly CalibratedSpotPolygon[] = [
   { label: "S41", polygon: [[499, 570], [534, 571], [520, 607], [469, 603]] },
 ];
 
-export const BRIGHTON_ZONE1_MAPPED_SPOT_COUNT =
-  BRIGHTON_ZONE1_POLYGONS.length;
+// Tuned by inspection of the camera centers — the cy gap between any two
+// neighboring spots inside one camera-row is < 25 px, while the gap from
+// the back row to the middle row is > 60 px and middle to front > 45 px.
+// 45 lands all 41 spots into the natural three-row grouping.
+const ROW_GAP_THRESHOLD_PX = 45;
 
-const ZONE1_WORLD_WIDTH = 30;
-const ZONE1_WORLD_DEPTH = 18;
-const ZONE1_SPOT_WIDTH = 1.2;
-const ZONE1_SPOT_DEPTH = 2.35;
+// Standardized surface-lot stall — sized to match the OSU 3D garage so
+// the GLB cars plug in at the same scale as `ParkingGarage3D`.
+const SURFACE_SPOT_W = 2.4;
+const SURFACE_SPOT_D = 4.8;
+const SURFACE_SPOT_GAP_X = 0.06;
+const SURFACE_ROW_PITCH_Z = 8.4; // row-center → next-row-center
 
-const zoneOneCenters = BRIGHTON_ZONE1_POLYGONS.map((spot) =>
-  centerOfPolygon(spot.polygon),
-);
-const minCenterX = Math.min(...zoneOneCenters.map((p) => p[0]));
-const maxCenterX = Math.max(...zoneOneCenters.map((p) => p[0]));
-const minCenterY = Math.min(...zoneOneCenters.map((p) => p[1]));
-const maxCenterY = Math.max(...zoneOneCenters.map((p) => p[1]));
+/**
+ * Zone 1 row inference, computed once at module load. Each entry is a
+ * row of labels, ordered from FRONT row first (closest to camera in the
+ * calibration) to BACK row last. Within a row, labels are ordered left
+ * to right as the camera sees them.
+ */
+const ZONE1_ROWS = inferZoneOneRows(BRIGHTON_ZONE1_POLYGONS);
 
-export const BRIGHTON_ZONE1_LABELS = BRIGHTON_ZONE1_POLYGONS.map(
-  (spot) => spot.label,
-);
+/**
+ * Stable label list (row-major, front-row first). Used by the screen to
+ * pad missing-spot placeholders for any calibrated label the backend
+ * hasn't reported yet.
+ */
+export const BRIGHTON_ZONE1_LABELS: readonly string[] = ZONE1_ROWS.flat();
+
+export const BRIGHTON_ZONE1_MAPPED_SPOT_COUNT = BRIGHTON_ZONE1_LABELS.length;
 
 export function buildBrightonLotLayout(
   zone: BrightonZone,
@@ -121,42 +138,89 @@ export function getBrightonZoneOneCapacity(
   return BRIGHTON_ZONE1_MAPPED_SPOT_COUNT;
 }
 
-function buildZoneOneLayout(spots: readonly Spot[]): BrightonLotSpace[] {
-  const calibrated = BRIGHTON_ZONE1_POLYGONS.map((entry) => {
-    const [cx, cy] = centerOfPolygon(entry.polygon);
-    const x = normalizeRange(cx, minCenterX, maxCenterX, ZONE1_WORLD_WIDTH);
-    const z = normalizeRange(cy, minCenterY, maxCenterY, ZONE1_WORLD_DEPTH);
-    return {
-      label: entry.label,
-      zone: "Z1" as const,
-      x,
-      z,
-      rotation: safeSpotRotation(entry.polygon),
-      width: ZONE1_SPOT_WIDTH,
-      depth: ZONE1_SPOT_DEPTH,
-      source: "calibrated" as const,
-    };
-  });
+// ──────────────────────────────────────────────────────────────────────
+// Layout construction
+// ──────────────────────────────────────────────────────────────────────
 
+interface PolygonPlacement {
+  label: string;
+  cx: number;
+  cy: number;
+}
+
+/**
+ * Cluster the calibrated polygons into camera-rows, then sort each row
+ * left-to-right. Returns an array of label rows with the FRONT row (the
+ * one closest to the camera, largest cy) first.
+ */
+function inferZoneOneRows(
+  polygons: readonly CalibratedSpotPolygon[],
+): string[][] {
+  const placements: PolygonPlacement[] = polygons.map((p) => ({
+    label: p.label,
+    cx: averageOf(p.polygon.map((pt) => pt[0])),
+    cy: averageOf(p.polygon.map((pt) => pt[1])),
+  }));
+
+  // Top of image (smallest cy) first — that's the back of the lot.
+  placements.sort((a, b) => a.cy - b.cy);
+
+  const rows: PolygonPlacement[][] = [];
+  let current: PolygonPlacement[] = [];
+  let prevCy = -Infinity;
+
+  for (const p of placements) {
+    if (current.length > 0 && p.cy - prevCy > ROW_GAP_THRESHOLD_PX) {
+      rows.push(current);
+      current = [];
+    }
+    current.push(p);
+    prevCy = p.cy;
+  }
+  if (current.length > 0) rows.push(current);
+
+  // Reverse so the FRONT row (largest cy = closest to the camera) is
+  // first. Within each row, sort left-to-right by cx so a label that
+  // sits on the left of the camera frame ends up on the left of the
+  // clean visualization.
+  rows.reverse();
+  return rows.map((row) =>
+    [...row].sort((a, b) => a.cx - b.cx).map((p) => p.label),
+  );
+}
+
+function buildZoneOneLayout(spots: readonly Spot[]): BrightonLotSpace[] {
+  const calibrated = placeRowsInLot(ZONE1_ROWS, "Z1", "calibrated");
+
+  // If the backend ever ships a Zone 1 label we don't have a calibrated
+  // slot for, append it to a small overflow row at the very back of the
+  // lot rather than drop it. This keeps the main layout untouched.
   const known = new Set(calibrated.map((space) => space.label.toUpperCase()));
-  const extras = spots
-    .filter((spot) => !known.has(spot.label.toUpperCase()))
-    .map((spot, index) => ({
+  const extras: BrightonLotSpace[] = [];
+  const overflowZ =
+    -((ZONE1_ROWS.length + 1) / 2) * SURFACE_ROW_PITCH_Z - SURFACE_SPOT_D * 0.6;
+
+  spots.forEach((spot, idx) => {
+    if (known.has(spot.label.toUpperCase())) return;
+    const overflowIndex = extras.length;
+    const stride = SURFACE_SPOT_W + SURFACE_SPOT_GAP_X;
+    extras.push({
       label: spot.label,
-      zone: "Z1" as const,
-      x: -ZONE1_WORLD_WIDTH / 2 + 1.2 + index * (ZONE1_SPOT_WIDTH + 0.25),
-      z: ZONE1_WORLD_DEPTH / 2 + 2.6,
+      zone: "Z1",
+      x: -((idx + 1) * stride) / 2 + overflowIndex * stride,
+      z: overflowZ,
       rotation: 0,
-      width: ZONE1_SPOT_WIDTH,
-      depth: ZONE1_SPOT_DEPTH,
-      source: "generated" as const,
-    }));
+      width: SURFACE_SPOT_W,
+      depth: SURFACE_SPOT_D,
+      source: "generated",
+    });
+  });
 
   if (extras.length > 0) {
     // eslint-disable-next-line no-console
     console.warn(
       "[SwiftPark] Brighton backend returned spots outside the calibrated layout:",
-      extras.map((spot) => spot.label),
+      extras.map((s) => s.label),
     );
   }
 
@@ -168,60 +232,76 @@ function buildGeneratedZoneLayout(
   count: number,
 ): BrightonLotSpace[] {
   const safeCount = Math.max(count, 0);
+  // Slightly different column counts so Z2 / Z3 read as visually
+  // distinct mock zones while still using the standardized stall.
   const cols = zone === "Z2" ? 12 : 10;
-  const spotW = 1.12;
-  const spotD = 2.25;
-  const colGap = 0.25;
-  const rowGap = 1.65;
-  const rows = Math.max(1, Math.ceil(safeCount / cols));
-  const totalW = cols * spotW + Math.max(0, cols - 1) * colGap;
-  const rowStride = spotD + rowGap;
-  const totalD = rows * rowStride;
+  const rowCount = Math.max(1, Math.ceil(safeCount / cols));
 
-  return Array.from({ length: safeCount }, (_, index) => {
-    const row = Math.floor(index / cols);
-    const col = index % cols;
-    const rowDirection = row % 2 === 0 ? 1 : -1;
-    return {
-      label: `${zone}-${String(index + 1).padStart(3, "0")}`,
-      zone,
-      x: -totalW / 2 + spotW / 2 + col * (spotW + colGap),
-      z: -totalD / 2 + spotD / 2 + row * rowStride,
-      rotation: rowDirection > 0 ? 0 : Math.PI,
-      width: spotW,
-      depth: spotD,
-      source: "generated",
-    };
+  const rows: string[][] = [];
+  for (let r = 0; r < rowCount; r++) {
+    const rowLabels: string[] = [];
+    for (let c = 0; c < cols; c++) {
+      const idx = r * cols + c;
+      if (idx >= safeCount) break;
+      rowLabels.push(`${zone}-${String(idx + 1).padStart(3, "0")}`);
+    }
+    if (rowLabels.length > 0) rows.push(rowLabels);
+  }
+
+  return placeRowsInLot(rows, zone, "generated");
+}
+
+/**
+ * Snap a list of label-rows into a clean standardized grid:
+ *   - row 0 (input) = front of the lot, places at +Z
+ *   - last row     = back of the lot,  places at -Z
+ *   - within a row, labels run left → right at +SURFACE_SPOT_W stride
+ *   - alternate rows mirror their rotation so cars in adjacent rows nose
+ *     opposite directions, matching how a real double-loaded lot reads
+ */
+function placeRowsInLot(
+  rows: readonly (readonly string[])[],
+  zone: BrightonZone,
+  source: "calibrated" | "generated",
+): BrightonLotSpace[] {
+  const result: BrightonLotSpace[] = [];
+  const rowCount = rows.length;
+  if (rowCount === 0) return result;
+  const middle = (rowCount - 1) / 2;
+
+  rows.forEach((rowLabels, rowIndex) => {
+    // FRONT row (rowIndex 0) sits at largest +Z; further-back rows step
+    // toward -Z. Camera default theta/phi looks down toward origin from
+    // +Z, so this places the front row closest to the viewer.
+    const z = (middle - rowIndex) * SURFACE_ROW_PITCH_Z;
+    const rotation = rowIndex % 2 === 0 ? 0 : Math.PI;
+
+    const stride = SURFACE_SPOT_W + SURFACE_SPOT_GAP_X;
+    const rowWidth =
+      rowLabels.length * SURFACE_SPOT_W +
+      Math.max(0, rowLabels.length - 1) * SURFACE_SPOT_GAP_X;
+    const startX = -rowWidth / 2 + SURFACE_SPOT_W / 2;
+
+    rowLabels.forEach((label, colIndex) => {
+      result.push({
+        label,
+        zone,
+        x: startX + colIndex * stride,
+        z,
+        rotation,
+        width: SURFACE_SPOT_W,
+        depth: SURFACE_SPOT_D,
+        source,
+      });
+    });
   });
+
+  return result;
 }
 
-function centerOfPolygon(polygon: readonly Point[]): Point {
-  const sum = polygon.reduce<[number, number]>(
-    (acc, point) => {
-      acc[0] += point[0];
-      acc[1] += point[1];
-      return acc;
-    },
-    [0, 0],
-  );
-  return [sum[0] / polygon.length, sum[1] / polygon.length];
-}
-
-function normalizeRange(
-  value: number,
-  min: number,
-  max: number,
-  worldSpan: number,
-): number {
-  if (max <= min) return 0;
-  const pct = (value - min) / (max - min);
-  return (pct - 0.5) * worldSpan;
-}
-
-function safeSpotRotation(polygon: readonly Point[]): number {
-  const [a, b] = polygon;
-  const angle = Math.atan2(b[1] - a[1], b[0] - a[0]);
-  const maxAngle = Math.PI / 7;
-  if (!Number.isFinite(angle) || Math.abs(angle) > Math.PI / 3) return 0;
-  return Math.max(-maxAngle, Math.min(maxAngle, -angle));
+function averageOf(values: readonly number[]): number {
+  if (values.length === 0) return 0;
+  let sum = 0;
+  for (const v of values) sum += v;
+  return sum / values.length;
 }
