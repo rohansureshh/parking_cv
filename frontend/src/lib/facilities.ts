@@ -8,6 +8,7 @@ export type FacilitySectionLabel = "Level" | "Zone";
 export interface FacilityDefinition {
   slug: string;
   name: string;
+  location: string;
   type: FacilityType;
   sectionLabel: FacilitySectionLabel;
   source: FacilitySource;
@@ -17,6 +18,7 @@ export const FACILITIES = {
   [OSU_FACILITY_SLUG]: {
     slug: OSU_FACILITY_SLUG,
     name: "OSU Parking Structure 1",
+    location: "200 W High St, Downtown",
     type: "garage",
     sectionLabel: "Level",
     source: "demo",
@@ -24,6 +26,7 @@ export const FACILITIES = {
   [BRIGHTON_FACILITY_SLUG]: {
     slug: BRIGHTON_FACILITY_SLUG,
     name: "Brighton Ski Resort",
+    location: "Brighton, UT",
     type: "surface_lot",
     sectionLabel: "Zone",
     source: "yolo_plus_mock",

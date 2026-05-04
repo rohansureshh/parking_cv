@@ -1,10 +1,16 @@
 import { useMemo, useState } from "react";
 
 import { DEMO_FALLBACK, useOccupancy } from "../lib/occupancyCache";
-import { OSU_FACILITY_SLUG } from "../lib/facilities";
+import {
+  BRIGHTON_FACILITY_SLUG,
+  getFacility,
+  type FacilitySectionLabel,
+  type FacilitySlug,
+} from "../lib/facilities";
 import type { FacilityStatus } from "../lib/types";
 
 interface GarageOverviewScreenProps {
+  facilitySlug: FacilitySlug;
   onBack: () => void;
   onViewSpotMap: () => void;
   onNavigate: () => void;
@@ -14,6 +20,7 @@ interface LevelInfo {
   level: string;
   available: number;
   total: number;
+  sourceLabel?: string;
 }
 
 const STATUS_COPY: Record<FacilityStatus, string> = {
@@ -41,6 +48,17 @@ const FALLBACK = {
   ] satisfies LevelInfo[],
 };
 
+const BRIGHTON_FALLBACK = {
+  available: 81,
+  capacity: 180,
+  facilityStatus: "open" as FacilityStatus,
+  levels: [
+    { level: "Z1", available: 8, total: 50, sourceLabel: "Live camera" },
+    { level: "Z2", available: 37, total: 72, sourceLabel: "Estimated" },
+    { level: "Z3", available: 36, total: 58, sourceLabel: "Estimated" },
+  ] satisfies LevelInfo[],
+};
+
 /**
  * Garage Overview screen.
  *
@@ -57,21 +75,35 @@ const FALLBACK = {
  *   6. Actions — primary "View Spot Map" + secondary "Navigate".
  */
 export function GarageOverviewScreen({
+  facilitySlug,
   onBack,
   onViewSpotMap,
   onNavigate,
 }: GarageOverviewScreenProps) {
-  const { occupancy, ready } = useOccupancy(OSU_FACILITY_SLUG);
+  const facility = getFacility(facilitySlug);
+  const isBrighton = facilitySlug === BRIGHTON_FACILITY_SLUG;
+  const { occupancy, ready } = useOccupancy(facilitySlug);
   const [favorited, setFavorited] = useState(false);
 
-  const garageName = occupancy?.lot_name ?? FALLBACK.name;
-  const garageAddress = occupancy?.location ?? FALLBACK.address;
-  const available = occupancy?.available ?? FALLBACK.available;
-  const capacity = occupancy?.capacity ?? FALLBACK.capacity;
-  const facilityStatus = occupancy?.facility_status ?? FALLBACK.facilityStatus;
+  const garageName =
+    occupancy?.lot_name ?? (isBrighton ? facility.name : FALLBACK.name);
+  const garageAddress =
+    occupancy?.location ?? (isBrighton ? facility.location : FALLBACK.address);
+  const available =
+    occupancy?.available ??
+    (isBrighton ? BRIGHTON_FALLBACK.available : FALLBACK.available);
+  const capacity =
+    occupancy?.capacity ??
+    (isBrighton ? BRIGHTON_FALLBACK.capacity : FALLBACK.capacity);
+  const facilityStatus =
+    occupancy?.facility_status ??
+    (isBrighton ? BRIGHTON_FALLBACK.facilityStatus : FALLBACK.facilityStatus);
+  const sectionLabel = facility.sectionLabel;
 
   const levels: LevelInfo[] = useMemo(() => {
-    if (!occupancy || occupancy.spots.length === 0) return FALLBACK.levels;
+    if (!occupancy || occupancy.spots.length === 0) {
+      return isBrighton ? BRIGHTON_FALLBACK.levels : FALLBACK.levels;
+    }
     const acc = new Map<string, { available: number; total: number }>();
     for (const spot of occupancy.spots) {
       const cur = acc.get(spot.level) ?? { available: 0, total: 0 };
@@ -80,16 +112,20 @@ export function GarageOverviewScreen({
       acc.set(spot.level, cur);
     }
     return Array.from(acc.entries())
-      .map(([level, c]) => ({ level, ...c }))
+      .map(([level, c]) => ({
+        level,
+        ...c,
+        sourceLabel: getSectionSourceLabel(level, isBrighton),
+      }))
       .sort((a, b) =>
         a.level.localeCompare(b.level, undefined, { numeric: true }),
       );
-  }, [occupancy]);
+  }, [occupancy, isBrighton]);
 
   return (
-    <div className="overview">
+    <div className="overview" data-facility={facilitySlug}>
       <header className="overview__hero">
-        <GarageHeroIllustration />
+        {isBrighton ? <SurfaceLotHeroIllustration /> : <GarageHeroIllustration />}
 
         <div className="overview__hero-bar">
           <button
@@ -176,15 +212,15 @@ export function GarageOverviewScreen({
           />
           <Stat
             tone="slate"
-            icon={<ClockIcon />}
-            value={`$${FALLBACK.pricePerHour}`}
-            label="Per hour"
+            icon={isBrighton ? <LayersIcon /> : <ClockIcon />}
+            value={isBrighton ? "3" : `$${FALLBACK.pricePerHour}`}
+            label={isBrighton ? "Zones" : "Per hour"}
           />
           <Stat
             tone="amber"
-            icon={<StarIcon />}
-            value={String(FALLBACK.rating)}
-            label="Rating"
+            icon={isBrighton ? <CameraIcon /> : <StarIcon />}
+            value={isBrighton ? "AI" : String(FALLBACK.rating)}
+            label={isBrighton ? "Source" : "Rating"}
           />
         </div>
 
@@ -194,15 +230,25 @@ export function GarageOverviewScreen({
         </div>
 
         <div className="overview__features">
-          <FeatureChip icon={<CameraIcon />} label="AI Detection" />
-          <FeatureChip icon={<MoonIcon />} label="24/7 Open" />
-          <FeatureChip icon={<BoltIcon />} label="EV Ready" />
+          {isBrighton ? (
+            <>
+              <FeatureChip icon={<CarIcon />} label="Surface Lot" />
+              <FeatureChip icon={<LayersIcon />} label="3 Zones" />
+              <FeatureChip icon={<CameraIcon />} label="Live Camera" />
+            </>
+          ) : (
+            <>
+              <FeatureChip icon={<CameraIcon />} label="AI Detection" />
+              <FeatureChip icon={<MoonIcon />} label="24/7 Open" />
+              <FeatureChip icon={<BoltIcon />} label="EV Ready" />
+            </>
+          )}
         </div>
 
         <section className="overview__levels-card">
           <div className="overview__section-head">
             <LayersIcon />
-            <h2 className="overview__section-title">By Level</h2>
+            <h2 className="overview__section-title">By {sectionLabel}</h2>
             <span className="overview__section-meta">
               {ready ? (
                 <>
@@ -219,20 +265,31 @@ export function GarageOverviewScreen({
           </div>
           <div className="overview__levels">
             {levels.map((l) => (
-              <LevelRow key={l.level} {...l} />
+              <LevelRow key={l.level} {...l} sectionLabel={sectionLabel} />
             ))}
           </div>
         </section>
 
         <div className="overview__actions">
-          <button
-            type="button"
-            className="overview__cta overview__cta--primary"
-            onClick={onViewSpotMap}
-          >
-            <CarIcon />
-            View Spot Map
-          </button>
+          {isBrighton ? (
+            <button
+              type="button"
+              className="overview__cta overview__cta--primary overview__cta--disabled"
+              disabled
+            >
+              <LayersIcon />
+              Brighton 3D lot visualization coming next.
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="overview__cta overview__cta--primary"
+              onClick={onViewSpotMap}
+            >
+              <CarIcon />
+              View Spot Map
+            </button>
+          )}
           <button
             type="button"
             className="overview__cta overview__cta--secondary"
@@ -285,7 +342,13 @@ function FeatureChip({
   );
 }
 
-function LevelRow({ level, available, total }: LevelInfo) {
+function LevelRow({
+  level,
+  available,
+  total,
+  sourceLabel,
+  sectionLabel,
+}: LevelInfo & { sectionLabel: FacilitySectionLabel }) {
   const pct = total > 0 ? (available / total) * 100 : 0;
   const isFull = available === 0;
   const isLimited = !isFull && pct <= 30;
@@ -297,9 +360,16 @@ function LevelRow({ level, available, total }: LevelInfo) {
 
   return (
     <div className="overview__level" data-status={status}>
-      <div className="overview__level-badge">L{level}</div>
+      <div className="overview__level-badge">
+        {formatSectionBadge(level, sectionLabel)}
+      </div>
       <div className="overview__level-info">
-        <div className="overview__level-name">Level {level}</div>
+        <div className="overview__level-name">
+          {formatSectionName(level, sectionLabel)}
+          {sourceLabel && (
+            <span className="overview__level-source">{sourceLabel}</span>
+          )}
+        </div>
         <div className="overview__level-status">
           {isFull ? "Full" : `${available} of ${total} available`}
         </div>
@@ -312,6 +382,29 @@ function LevelRow({ level, available, total }: LevelInfo) {
       </div>
     </div>
   );
+}
+
+function getSectionSourceLabel(level: string, isBrighton: boolean): string | undefined {
+  if (!isBrighton) return undefined;
+  return level.toUpperCase() === "Z1" ? "Live camera" : "Estimated";
+}
+
+function formatSectionBadge(
+  level: string,
+  sectionLabel: FacilitySectionLabel,
+): string {
+  if (sectionLabel === "Zone") return level.toUpperCase();
+  return `L${level}`;
+}
+
+function formatSectionName(
+  level: string,
+  sectionLabel: FacilitySectionLabel,
+): string {
+  if (sectionLabel === "Zone") {
+    return `Zone ${level.replace(/^Z/i, "")}`;
+  }
+  return `Level ${level}`;
 }
 
 /* SwiftPark teardrop pin — matches the splash brand mark exactly so
@@ -347,6 +440,74 @@ function BrandPin() {
 /* ─────────────────────────────────────────────────────────────────
    Hero illustration — stylized SwiftPark parking structure
    ───────────────────────────────────────────────────────────────── */
+
+function SurfaceLotHeroIllustration() {
+  return (
+    <svg
+      className="overview__hero-svg"
+      viewBox="0 0 400 240"
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="brighton-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#dbeafe" />
+          <stop offset="58%" stopColor="#eef6ff" />
+          <stop offset="100%" stopColor="#f8fafc" />
+        </linearGradient>
+        <linearGradient id="brighton-mountain" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#64748b" />
+          <stop offset="100%" stopColor="#334155" />
+        </linearGradient>
+        <linearGradient id="brighton-overlay" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="black" stopOpacity="0" />
+          <stop offset="60%" stopColor="black" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="black" stopOpacity="0.62" />
+        </linearGradient>
+      </defs>
+
+      <rect width="400" height="240" fill="url(#brighton-sky)" />
+      <path d="M0 126 L72 62 L126 106 L190 42 L400 138 L400 240 L0 240 Z" fill="#cbd5e1" />
+      <path d="M0 150 L88 76 L142 118 L206 52 L400 150 L400 240 L0 240 Z" fill="url(#brighton-mountain)" opacity="0.82" />
+      <path d="M0 166 H400 V240 H0 Z" fill="#e2e8f0" />
+      <g stroke="#94a3b8" strokeWidth="2" opacity="0.75">
+        <line x1="44" y1="174" x2="44" y2="232" />
+        <line x1="86" y1="170" x2="86" y2="232" />
+        <line x1="128" y1="174" x2="128" y2="232" />
+        <line x1="206" y1="168" x2="206" y2="232" />
+        <line x1="248" y1="174" x2="248" y2="232" />
+        <line x1="290" y1="170" x2="290" y2="232" />
+        <line x1="332" y1="174" x2="332" y2="232" />
+      </g>
+      <g fill="#2563eb">
+        <rect x="52" y="184" width="36" height="18" rx="5" />
+        <rect x="214" y="188" width="36" height="18" rx="5" />
+      </g>
+      <g fill="#ef4444">
+        <rect x="294" y="196" width="36" height="18" rx="5" />
+      </g>
+      <g transform="translate(306, 64)">
+        <path
+          d="M 0 0 C -11 0 -20 9 -20 20 c 0 14.5 20 34 20 34 s 20 -19.5 20 -34 C 20 9 11 0 0 0 Z"
+          fill="#2563eb"
+        />
+        <circle cx="0" cy="20" r="10" fill="white" />
+        <text
+          x="0"
+          y="24.4"
+          textAnchor="middle"
+          fontSize="13"
+          fontWeight="900"
+          fill="#2563eb"
+          fontFamily="-apple-system, BlinkMacSystemFont, system-ui, sans-serif"
+        >
+          P
+        </text>
+      </g>
+      <rect width="400" height="240" fill="url(#brighton-overlay)" />
+    </svg>
+  );
+}
 
 function GarageHeroIllustration() {
   return (

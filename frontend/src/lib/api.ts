@@ -198,20 +198,28 @@ function buildBrightonZoneOneSpots(yolo: YoloStatusResponse): Spot[] {
     }));
   }
 
-  const capacity = toCount(yolo.capacity);
-  const unknown = toCount(yolo.unknown);
-  let occupied = toCount(yolo.occupied);
+  const rawAvailable = toCount(yolo.available);
+  const rawOccupied = toCount(yolo.occupied);
+  const rawUnknown = toCount(yolo.unknown);
+  const capacity = Math.max(
+    toCount(yolo.capacity),
+    rawAvailable + rawOccupied + rawUnknown,
+  );
+  const zoneOneOccupancyPct = normalizeIncomingPct(
+    yolo.occupancy_pct,
+    rawOccupied,
+    capacity,
+  );
 
-  if (!isFiniteNumber(yolo.occupied) && capacity > 0) {
-    const pct = normalizeIncomingPct(yolo.occupancy_pct, 0, capacity);
-    occupied = Math.round((pct / 100) * capacity);
-  }
-
+  const occupied = isFiniteNumber(yolo.occupied)
+    ? Math.min(rawOccupied, capacity)
+    : Math.round((zoneOneOccupancyPct / 100) * capacity);
+  const unknown = Math.min(rawUnknown, Math.max(capacity - occupied, 0));
   const available = isFiniteNumber(yolo.available)
-    ? toCount(yolo.available)
+    ? Math.min(rawAvailable, Math.max(capacity - occupied - unknown, 0))
     : Math.max(capacity - occupied - unknown, 0);
-  const totalFromCounts = available + occupied + unknown;
-  const paddedUnknown = unknown + Math.max(capacity - totalFromCounts, 0);
+  const paddedUnknown =
+    unknown + Math.max(capacity - available - occupied - unknown, 0);
 
   return makeSpotsFromCounts({
     level: "Z1",
@@ -240,7 +248,7 @@ function normalizeBrightonOccupancy(yolo: YoloStatusResponse): Occupancy {
     lot_id: BRIGHTON_FACILITY_SLUG,
     lot_slug: BRIGHTON_FACILITY_SLUG,
     lot_name: facility.name,
-    location: "Brighton, UT",
+    location: facility.location,
     facility_status: deriveFacilityStatus(occupancyPct),
     capacity,
     available: counts.available,

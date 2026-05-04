@@ -5,9 +5,15 @@ import {
   type SelectedSpot,
   useOccupancy,
 } from "../lib/occupancyCache";
-import { OSU_FACILITY_SLUG } from "../lib/facilities";
+import {
+  getFacility,
+  OSU_FACILITY_SLUG,
+  type FacilitySectionLabel,
+  type FacilitySlug,
+} from "../lib/facilities";
 
 interface ParkedConfirmationScreenProps {
+  facilitySlug: FacilitySlug;
   onBackToMap: () => void;
   /** When provided, this spot is shown as the confirmed parking spot
    *  immediately on mount, regardless of cache contents. Threaded through
@@ -44,11 +50,14 @@ type ShareStatus = "idle" | "shared" | "copied";
  * change the user's confirmed spot from under them.
  */
 export function ParkedConfirmationScreen({
+  facilitySlug,
   onBackToMap,
   preselectedSpot,
 }: ParkedConfirmationScreenProps) {
-  const { occupancy } = useOccupancy(OSU_FACILITY_SLUG);
+  const facility = getFacility(facilitySlug);
+  const { occupancy } = useOccupancy(facilitySlug);
   const [frozen, setFrozen] = useState<FrozenState | null>(null);
+  const sectionLabel = facility.sectionLabel;
 
   useEffect(() => {
     if (frozen) return;
@@ -60,24 +69,35 @@ export function ParkedConfirmationScreen({
       const open = occupancy.spots.find((s) => s.status === "available");
       spot = open
         ? { label: open.label, level: open.level }
-        : FALLBACK_SPOT;
+        : getFallbackSpot(facilitySlug);
     }
     if (!spot) return; // nothing to show yet — wait for occupancy
 
     const garage = occupancy
       ? { name: occupancy.lot_name, address: occupancy.location }
       : {
-          name: DEMO_FALLBACK.garageName,
-          address: DEMO_FALLBACK.garageAddress,
+          name:
+            facilitySlug === OSU_FACILITY_SLUG
+              ? DEMO_FALLBACK.garageName
+              : facility.name,
+          address:
+            facilitySlug === OSU_FACILITY_SLUG
+              ? DEMO_FALLBACK.garageAddress
+              : facility.location,
         };
 
     setFrozen({ spot, garage });
-  }, [occupancy, frozen, preselectedSpot]);
+  }, [occupancy, frozen, preselectedSpot, facility, facilitySlug]);
 
-  const spot = frozen?.spot ?? FALLBACK_SPOT;
-  const garageName = frozen?.garage.name ?? DEMO_FALLBACK.garageName;
+  const spot = frozen?.spot ?? getFallbackSpot(facilitySlug);
+  const garageName =
+    frozen?.garage.name ??
+    (facilitySlug === OSU_FACILITY_SLUG ? DEMO_FALLBACK.garageName : facility.name);
   const garageAddress =
-    frozen?.garage.address ?? DEMO_FALLBACK.garageAddress;
+    frozen?.garage.address ??
+    (facilitySlug === OSU_FACILITY_SLUG
+      ? DEMO_FALLBACK.garageAddress
+      : facility.location);
 
   /* Timer */
   const [timerStarted, setTimerStarted] = useState(false);
@@ -96,7 +116,10 @@ export function ParkedConfirmationScreen({
   const [shareStatus, setShareStatus] = useState<ShareStatus>("idle");
 
   const handleShare = async () => {
-    const text = `I'm parked at Spot ${spot.label}, Level ${spot.level} — ${garageName}.`;
+    const text = `I'm parked at Spot ${spot.label}, ${formatSectionValue(
+      spot.level,
+      sectionLabel,
+    )} - ${garageName}.`;
 
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
@@ -167,8 +190,10 @@ export function ParkedConfirmationScreen({
             </div>
             <span className="parked__card-divider" aria-hidden="true" />
             <div className="parked__card-col">
-              <div className="parked__card-label">Level</div>
-              <div className="parked__card-value">{spot.level}</div>
+              <div className="parked__card-label">{sectionLabel}</div>
+              <div className="parked__card-value">
+                {formatSectionShortValue(spot.level, sectionLabel)}
+              </div>
             </div>
           </div>
 
@@ -251,6 +276,27 @@ function formatTimer(secs: number): string {
   const m = Math.floor(secs / 60);
   const s = secs % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function getFallbackSpot(facilitySlug: FacilitySlug): FrozenSpot {
+  if (facilitySlug === OSU_FACILITY_SLUG) return FALLBACK_SPOT;
+  return { label: "Z1-001", level: "Z1" };
+}
+
+function formatSectionValue(
+  level: string,
+  sectionLabel: FacilitySectionLabel,
+): string {
+  if (sectionLabel === "Zone") return `Zone ${level.replace(/^Z/i, "")}`;
+  return `Level ${level}`;
+}
+
+function formatSectionShortValue(
+  level: string,
+  sectionLabel: FacilitySectionLabel,
+): string {
+  if (sectionLabel === "Zone") return level.toUpperCase();
+  return level;
 }
 
 /* ─────────────────────────────────────────────────────────────────

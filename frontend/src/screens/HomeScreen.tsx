@@ -1,8 +1,14 @@
 import { DEMO_FALLBACK, useOccupancy } from "../lib/occupancyCache";
-import { OSU_FACILITY_SLUG } from "../lib/facilities";
+import {
+  BRIGHTON_FACILITY_SLUG,
+  getFacility,
+  OSU_FACILITY_SLUG,
+  type FacilitySlug,
+} from "../lib/facilities";
+import type { FacilityStatus } from "../lib/types";
 
 interface HomeScreenProps {
-  onSelectGarage: () => void;
+  onSelectGarage: (facilitySlug: FacilitySlug) => void;
 }
 
 type MarkerStatus = "available" | "busy" | "full";
@@ -34,11 +40,17 @@ interface MockMarker {
  */
 export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
   const { occupancy, ready } = useOccupancy(OSU_FACILITY_SLUG);
+  const { occupancy: brightonOccupancy, ready: brightonReady } =
+    useOccupancy(BRIGHTON_FACILITY_SLUG);
 
   const liveAvailable = occupancy?.available ?? 42;
   const liveCapacity = occupancy?.capacity ?? 120;
   const garageName = occupancy?.lot_name ?? DEMO_FALLBACK.garageName;
   const garageAddress = occupancy?.location ?? DEMO_FALLBACK.garageAddress;
+  const brightonFacility = getFacility(BRIGHTON_FACILITY_SLUG);
+  const brightonAvailable = brightonOccupancy?.available ?? 81;
+  const brightonCapacity = brightonOccupancy?.capacity ?? 180;
+  const brightonStatus = brightonOccupancy?.facility_status ?? "open";
 
   // Hard-coded busy / full pins always render. The primary blue pin is
   // gated on `ready` so its count never flashes from a fallback to the
@@ -57,6 +69,13 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
           },
         ]
       : []),
+    {
+      id: "brighton",
+      status: toMarkerStatus(brightonStatus),
+      count: brightonAvailable,
+      top: "39%",
+      left: "58%",
+    },
   ];
 
   return (
@@ -96,7 +115,7 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
         <LocateIcon />
       </button>
 
-      <article className="home__card">
+      <article className="home__card home__card--osu">
         {/* Header — title / meta / rating in the left column, thumbnail
             on the right. Moving the rating INTO this column (instead of
             below it) eliminates the awkward empty band that used to sit
@@ -167,7 +186,68 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
         <button
           type="button"
           className="home__card-cta"
-          onClick={onSelectGarage}
+          onClick={() => onSelectGarage(OSU_FACILITY_SLUG)}
+        >
+          View Details
+          <ChevronRightIcon />
+        </button>
+      </article>
+
+      <article className="home__card home__card--brighton">
+        <div className="home__card-header">
+          <div className="home__card-info">
+            <div className="home__card-eyebrow">Mountain surface lot</div>
+            <h3 className="home__card-title">
+              {brightonReady ? (
+                brightonFacility.name
+              ) : (
+                <span
+                  className="demo-skel demo-skel--ink"
+                  style={{ width: 170 }}
+                  aria-hidden="true"
+                />
+              )}
+            </h3>
+            <div className="home__card-meta">
+              <span>Surface lot</span>
+              <span className="home__card-meta-dot" aria-hidden="true">-</span>
+              <span>3 zones</span>
+            </div>
+            <div className="home__card-rating">
+              <CameraMiniIcon />
+              <span className="home__card-rating-num">Zone 1 live camera</span>
+            </div>
+          </div>
+          <SurfaceLotThumb />
+        </div>
+
+        <div className="home__card-live home__card-live--compact">
+          <div className="home__card-live-counts">
+            {brightonReady ? (
+              <>
+                <span className="home__card-spot-count">{brightonAvailable}</span>
+                <span className="home__card-spot-of">of {brightonCapacity}</span>
+              </>
+            ) : (
+              <span
+                className="demo-skel demo-skel--ink"
+                style={{ width: 76, height: "1em" }}
+                aria-hidden="true"
+              />
+            )}
+          </div>
+          <span className="home__card-spot-label">spots available</span>
+        </div>
+
+        <div className="home__card-features">
+          <span className="home__card-feature">Zones 2-3 estimated</span>
+          <span className="home__card-feature">Surface lot</span>
+        </div>
+
+        <button
+          type="button"
+          className="home__card-cta"
+          onClick={() => onSelectGarage(BRIGHTON_FACILITY_SLUG)}
         >
           View Details
           <ChevronRightIcon />
@@ -195,6 +275,12 @@ export function HomeScreen({ onSelectGarage }: HomeScreenProps) {
 /* ─────────────────────────────────────────────────────────────────
    Fake map — light Apple/Google Maps look, CSS+SVG only.
    ───────────────────────────────────────────────────────────────── */
+
+function toMarkerStatus(status: FacilityStatus): MarkerStatus {
+  if (status === "nearly_full") return "full";
+  if (status === "busy") return "busy";
+  return "available";
+}
 
 function FakeMap() {
   return (
@@ -516,6 +602,55 @@ function GarageThumb() {
   );
 }
 
+function SurfaceLotThumb() {
+  return (
+    <div className="home__card-thumb home__card-thumb--surface" aria-hidden="true">
+      <svg viewBox="0 0 96 96" className="home__card-thumb-svg">
+        <defs>
+          <linearGradient id="surface-sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#dbeafe" />
+            <stop offset="100%" stopColor="#f8fafc" />
+          </linearGradient>
+          <linearGradient id="surface-mountain" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#64748b" />
+            <stop offset="100%" stopColor="#334155" />
+          </linearGradient>
+        </defs>
+        <rect width="96" height="96" rx="14" fill="url(#surface-sky)" />
+        <path d="M0 44 L22 22 L38 38 L56 18 L96 54 L96 96 L0 96 Z" fill="#cbd5e1" />
+        <path d="M6 48 L28 25 L44 42 L61 21 L94 52 L94 96 L6 96 Z" fill="url(#surface-mountain)" opacity="0.82" />
+        <path d="M0 58 H96 V96 H0 Z" fill="#e2e8f0" />
+        <g stroke="#94a3b8" strokeWidth="1.2">
+          <line x1="16" y1="62" x2="16" y2="91" />
+          <line x1="32" y1="62" x2="32" y2="91" />
+          <line x1="48" y1="62" x2="48" y2="91" />
+          <line x1="64" y1="62" x2="64" y2="91" />
+          <line x1="80" y1="62" x2="80" y2="91" />
+        </g>
+        <g fill="#2563eb">
+          <rect x="20" y="68" width="11" height="7" rx="2" />
+          <rect x="52" y="70" width="11" height="7" rx="2" />
+        </g>
+        <g fill="#ef4444">
+          <rect x="68" y="80" width="11" height="7" rx="2" />
+        </g>
+        <circle cx="76" cy="22" r="12" fill="white" />
+        <circle cx="76" cy="22" r="9" fill="#2563eb" />
+        <text
+          x="76"
+          y="25.5"
+          textAnchor="middle"
+          fontSize="10"
+          fontWeight="900"
+          fill="white"
+        >
+          P
+        </text>
+      </svg>
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────────────────────────────
    Bottom tab bar
    ───────────────────────────────────────────────────────────────── */
@@ -605,6 +740,20 @@ function StarIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M12 2.5l3.09 6.26 6.91 1.01-5 4.87 1.18 6.86L12 18.27l-6.18 3.23L7 14.64l-5-4.87 6.91-1.01L12 2.5z" />
+    </svg>
+  );
+}
+
+function CameraMiniIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M3 7h4l2-3h6l2 3h4v12H3z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="13" r="3.5" stroke="currentColor" strokeWidth="2" />
     </svg>
   );
 }

@@ -11,7 +11,7 @@ import {
   prefetchOccupancy,
   type SelectedSpot,
 } from "./lib/occupancyCache";
-import { OSU_FACILITY_SLUG } from "./lib/facilities";
+import { OSU_FACILITY_SLUG, type FacilitySlug } from "./lib/facilities";
 import type { Spot } from "./lib/types";
 
 /**
@@ -35,6 +35,8 @@ import type { Spot } from "./lib/types";
  */
 function App() {
   const [screen, setScreen] = useState<Screen>(INITIAL_SCREEN);
+  const [selectedFacility, setSelectedFacility] =
+    useState<FacilitySlug>(OSU_FACILITY_SLUG);
   const [selectedSpot, setSelectedSpot] = useState<SelectedSpot | null>(null);
 
   // Warm the shared occupancy cache during splash so the first real screen
@@ -48,17 +50,19 @@ function App() {
     setScreen({ kind: "home" });
   }, []);
 
-  const goOverview = useCallback(() => {
+  const goOverview = useCallback((facilitySlug: FacilitySlug) => {
+    setSelectedFacility(facilitySlug);
     setSelectedSpot(null);
     setScreen({ kind: "garage_overview" });
   }, []);
 
   const goSpotViz = useCallback(() => {
+    if (selectedFacility !== OSU_FACILITY_SLUG) return;
     // Fresh visit to Spot Viz — clear any prior selection so back-out
     // and re-entry behaves like a clean session.
     setSelectedSpot(null);
     setScreen({ kind: "spot_visualization" });
-  }, []);
+  }, [selectedFacility]);
 
   const goNavigation = useCallback(() => {
     // Generic "Navigate" from Garage Overview — no specific spot selected.
@@ -87,6 +91,7 @@ function App() {
       {screen.kind === "garage_overview" && (
         <GarageOverviewScreen
           onBack={goHome}
+          facilitySlug={selectedFacility}
           onViewSpotMap={goSpotViz}
           onNavigate={goNavigation}
         />
@@ -94,14 +99,15 @@ function App() {
 
       {screen.kind === "spot_visualization" && (
         <SpotVisualizationScreen
-          onBack={goOverview}
+          onBack={() => goOverview(OSU_FACILITY_SLUG)}
           onStartNavigation={goNavigationWithSpot}
         />
       )}
 
       {screen.kind === "navigation" && (
         <NavigationScreen
-          onBack={goOverview}
+          facilitySlug={selectedFacility}
+          onBack={() => goOverview(selectedFacility)}
           onCancel={goHome}
           onParked={goParked}
           preselectedSpot={selectedSpot ?? undefined}
@@ -110,6 +116,7 @@ function App() {
 
       {screen.kind === "parked" && (
         <ParkedConfirmationScreen
+          facilitySlug={selectedFacility}
           onBackToMap={goHome}
           preselectedSpot={selectedSpot ?? undefined}
         />
